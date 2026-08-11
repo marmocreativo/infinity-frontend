@@ -1,0 +1,24 @@
+@import "leaflet/dist/leaflet.css";
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #7C3AED;
+  --color-primary-dark: #6D28D9;
+  --color-primary-light: #A78BFA;
+
+  --color-accent: #F59E0B;
+
+  --color-base-navy: #0F172A;
+  --color-base-dark: #1E293B;
+  --color-base-light: #F8FAFC;
+
+  --color-status-pending: #94A3B8;
+  --color-status-assigned: #3B82F6;
+  --color-status-enroute: #F59E0B;
+  --color-status-delivered: #10B981;
+  --color-status-cancelled: #EF4444;
+
+  --font-heading: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}

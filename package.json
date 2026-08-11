@@ -1,0 +1,13 @@
+{
+  "name": "infinity-frontend",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:cliente": "npm run dev --workspace=apps/cliente",
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    "dev:mensajero": "npm run dev --workspace=apps/mensajero"
+  }
+}
