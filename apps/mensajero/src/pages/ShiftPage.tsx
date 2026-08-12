@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import type { Shift } from '../types';
+import { Power } from 'lucide-react';
 
 interface ShiftCurrentResponse {
   on_duty: boolean;
   shift: Shift | null;
+}
+
+function formatElapsed(startedAt: string): string {
+  const start = new Date(startedAt).getTime();
+  const now = Date.now();
+  const diffSec = Math.max(0, Math.floor((now - start) / 1000));
+  const h = Math.floor(diffSec / 3600);
+  const m = Math.floor((diffSec % 3600) / 60);
+  const s = diffSec % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 export default function ShiftPage() {
@@ -13,6 +24,7 @@ export default function ShiftPage() {
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState('00:00:00');
 
   function loadStatus() {
     setLoading(true);
@@ -27,6 +39,18 @@ export default function ShiftPage() {
   useEffect(() => {
     loadStatus();
   }, []);
+
+  // Contador de tiempo en vivo mientras está en turno
+  useEffect(() => {
+    if (!onDuty || !shift) return;
+
+    setElapsed(formatElapsed(shift.started_at));
+    const interval = setInterval(() => {
+      setElapsed(formatElapsed(shift.started_at));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [onDuty, shift]);
 
   async function handleToggle() {
     setToggling(true);
@@ -46,23 +70,55 @@ export default function ShiftPage() {
   }
 
   if (loading) {
-    return <p className="p-4 font-body text-base-light/70">Cargando...</p>;
+    return <p className="p-4 font-body text-muted-foreground">Cargando...</p>;
   }
 
   return (
-    <div className="p-4 max-w-sm mx-auto text-center pt-12">
-      <div
-        className={`w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center border-4 ${
-          onDuty ? 'border-status-delivered bg-status-delivered/10' : 'border-base-light/20 bg-base-dark'
-        }`}
-      >
-        <span className="font-heading text-lg text-base-light">
-          {onDuty ? 'En labores' : 'Fuera de turno'}
-        </span>
+    <div className="p-4 max-w-sm mx-auto text-center pt-16 pb-24">
+      {/* Anillo futurista */}
+      <div className="relative w-48 h-48 mx-auto mb-8 flex items-center justify-center">
+        {onDuty && (
+          <>
+            {/* Anillo giratorio con gradiente */}
+            <div
+              className="absolute inset-0 rounded-full animate-spin-slow"
+              style={{
+                background: 'conic-gradient(from 0deg, transparent, var(--primary), transparent 40%)',
+                padding: '3px',
+                WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px))',
+                mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px))',
+              }}
+            />
+            {/* Pulso exterior */}
+            <div className="absolute inset-0 rounded-full border-2 border-primary animate-pulse-ring" />
+          </>
+        )}
+
+        {/* Círculo central */}
+        <div
+          className={`relative w-40 h-40 rounded-full flex flex-col items-center justify-center gap-1 border-2 transition-all duration-500 ${
+            onDuty
+              ? 'border-primary bg-card glow-fill'
+              : 'border-border bg-card'
+          }`}
+        >
+          <Power
+            size={28}
+            className={onDuty ? 'text-primary mb-1' : 'text-muted-foreground mb-1'}
+          />
+          <span className={`font-heading text-sm font-semibold ${onDuty ? 'text-foreground' : 'text-muted-foreground'}`}>
+            {onDuty ? 'En labores' : 'Fuera de turno'}
+          </span>
+          {onDuty && (
+            <span className="font-mono text-lg text-primary tracking-wider mt-1">
+              {elapsed}
+            </span>
+          )}
+        </div>
       </div>
 
       {onDuty && shift && (
-        <p className="font-body text-sm text-base-light/70 mb-6">
+        <p className="font-body text-sm text-muted-foreground mb-6">
           Iniciaste turno a las {new Date(shift.started_at).toLocaleTimeString()}
         </p>
       )}
@@ -72,17 +128,17 @@ export default function ShiftPage() {
       <button
         onClick={handleToggle}
         disabled={toggling}
-        className={`w-full font-body font-medium px-4 py-3 rounded-lg transition-colors disabled:opacity-50 ${
+        className={`w-full font-body font-medium px-4 py-3 rounded-lg transition-all disabled:opacity-50 ${
           onDuty
-            ? 'bg-status-cancelled hover:bg-red-600 text-white'
-            : 'bg-primary hover:bg-primary-dark text-white'
+            ? 'bg-status-cancelled hover:opacity-90 text-white'
+            : 'bg-primary hover:opacity-90 text-primary-foreground glow-fill'
         }`}
       >
         {toggling ? 'Actualizando...' : onDuty ? 'Terminar labores' : 'Iniciar labores'}
       </button>
 
       {onDuty && (
-        <p className="font-body text-xs text-base-light/50 mt-4">
+        <p className="font-body text-xs text-muted-foreground mt-4">
           Mientras estés en labores, tu ubicación se comparte en tiempo real con el equipo de administración.
         </p>
       )}
