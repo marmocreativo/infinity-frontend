@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '../lib/auth';
+import { Menu, X } from 'lucide-react';
 
 const navItems = [
   { to: '/dashboard', label: 'Pedidos' },
@@ -13,6 +15,12 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const user = auth.getUser();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Cierra el sidebar automáticamente al cambiar de ruta (navegación por link)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   async function handleLogout() {
     await auth.logout();
@@ -20,11 +28,31 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-base-navy text-base-light flex">
-      <aside className="w-56 border-r border-base-light/10 p-4 flex flex-col">
-        <h1 className="font-heading text-lg text-primary font-semibold mb-8">
-          Infinity App
-        </h1>
+    <div className="min-h-screen bg-background text-foreground flex">
+      {/* Overlay — solo visible en móvil cuando el sidebar está abierto */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — offcanvas en móvil, fijo en desktop */}
+      <aside
+        className={`fixed lg:static inset-y-0 left-0 z-40 w-56 border-r border-border p-4 flex flex-col bg-background
+          transform transition-transform duration-200 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+      >
+        <div className="flex items-center justify-between mb-8">
+          <img src="/logo.png" alt="Infinity App" className="h-8" />
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden text-muted-foreground hover:text-foreground"
+            aria-label="Cerrar menú"
+          >
+            <X size={20} />
+          </button>
+        </div>
 
         <nav className="flex-1 space-y-1">
           {navItems.map((item) => (
@@ -33,8 +61,8 @@ export default function Layout() {
               to={item.to}
               className={`block font-body text-sm px-3 py-2 rounded-lg transition-colors ${
                 location.pathname === item.to
-                  ? 'bg-primary text-white'
-                  : 'text-base-light/70 hover:bg-base-dark'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-card'
               }`}
             >
               {item.label}
@@ -42,20 +70,34 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="border-t border-base-light/10 pt-4">
-          <p className="font-body text-sm text-base-light/70 mb-2">{user?.name}</p>
+        <div className="border-t border-border pt-4">
+          <p className="font-body text-sm text-muted-foreground mb-2">{user?.name}</p>
           <button
             onClick={handleLogout}
-            className="font-body text-sm text-base-light/70 hover:text-status-cancelled transition-colors"
+            className="font-body text-sm text-muted-foreground hover:text-status-cancelled transition-colors"
           >
             Cerrar sesión
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
-        <Outlet />
-      </main>
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header móvil — solo visible bajo lg, con botón hamburguesa */}
+        <header className="lg:hidden flex items-center justify-between border-b border-border px-4 py-3">
+          <img src="/logo.png" alt="Infinity App" className="h-7" />
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-foreground"
+            aria-label="Abrir menú"
+          >
+            <Menu size={22} />
+          </button>
+        </header>
+
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
