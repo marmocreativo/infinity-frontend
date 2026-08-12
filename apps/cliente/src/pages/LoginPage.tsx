@@ -13,18 +13,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-base-navy flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <h1 className="font-heading text-2xl text-primary font-semibold mb-1">
-          Infinity App
-        </h1>
-        <p className="font-body text-base-light/70 text-sm mb-8">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="w-full max-w-sm flex flex-col items-center">
+        <img src="/logo.png" alt="Infinity App" className="w-48 mb-6" />
+
+        <p className="font-body text-muted-foreground text-sm mb-8 text-center">
           Inicia sesión en tu cuenta de clínica
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="w-full space-y-4">
           <div>
-            <label className="block font-body text-sm text-base-light mb-1">
+            <label className="block font-body text-sm text-foreground mb-1">
               Correo electrónico
             </label>
             <input
@@ -32,13 +31,13 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full bg-base-dark text-base-light font-body px-3 py-2 rounded-lg border border-base-light/10 focus:border-primary focus:outline-none"
+              className="w-full bg-card text-foreground font-body px-3 py-2 rounded-lg border border-border focus:border-primary focus:outline-none"
               placeholder="tu@clinica.com"
             />
           </div>
 
           <div>
-            <label className="block font-body text-sm text-base-light mb-1">
+            <label className="block font-body text-sm text-foreground mb-1">
               Contraseña
             </label>
             <input
@@ -46,7 +45,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full bg-base-dark text-base-light font-body px-3 py-2 rounded-lg border border-base-light/10 focus:border-primary focus:outline-none"
+              className="w-full bg-card text-foreground font-body px-3 py-2 rounded-lg border border-border focus:border-primary focus:outline-none"
               placeholder="••••••••"
             />
           </div>
@@ -58,15 +57,15 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 text-white font-body font-medium px-4 py-2 rounded-lg transition-colors"
+            className="w-full bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground font-body font-medium px-4 py-2 rounded-lg transition-opacity glow-fill"
           >
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>
 
-        <p className="font-body text-sm text-base-light/70 mt-6 text-center">
+        <p className="font-body text-sm text-muted-foreground mt-6 text-center">
           ¿No tienes cuenta?{' '}
-          <Link to="/register" className="text-primary hover:text-primary-light">
+          <Link to="/register" className="text-primary hover:opacity-80">
             Regístrate
           </Link>
         </p>

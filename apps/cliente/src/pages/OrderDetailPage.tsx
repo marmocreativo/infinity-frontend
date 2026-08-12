@@ -3,6 +3,9 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { Order } from '../types';
 import StatusBadge from '../components/StatusBadge';
+import OrderTimeline from '../components/OrderTimeline';
+import OrderMapFull from '../components/OrderMapFull';
+import { ChevronDown, ChevronLeft } from 'lucide-react';
 
 interface OrderResponse {
   data: Order;
@@ -24,6 +27,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     api.get<OrderResponse>(`/cliente/orders/${id}`)
@@ -45,99 +49,128 @@ export default function OrderDetailPage() {
     }
   }
 
-  if (loading) return <p className="p-4 font-body text-base-light/70">Cargando...</p>;
+  if (loading) return <p className="p-4 font-body text-muted-foreground">Cargando...</p>;
   if (error) return <p className="p-4 font-body text-status-cancelled">{error}</p>;
   if (!order) return null;
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
-      <Link to="/orders" className="font-body text-sm text-primary hover:text-primary-light mb-4 inline-block">
-        ← Volver a mis pedidos
-      </Link>
-
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-xl text-base-light font-semibold">
-          Pedido #{order.id}
-        </h1>
-        <StatusBadge status={order.status} />
+    <div className="pb-24">
+      {/* Mapa prominente + botón volver flotante */}
+      <div className="relative">
+        <Link
+          to="/orders"
+          className="absolute top-4 left-4 z-20 bg-card/90 backdrop-blur-sm rounded-full p-2 border border-border"
+        >
+          <ChevronLeft size={18} className="text-foreground" />
+        </Link>
+        <OrderMapFull pickup={order.pickup} delivery={order.delivery} />
       </div>
 
-      <div className="bg-base-dark border border-base-light/10 rounded-lg p-4 mb-4 space-y-3">
-        <div>
-          <p className="font-body text-xs text-base-light/50 mb-1">Recolección</p>
-          <p className="font-body text-sm text-base-light">{order.pickup.address}</p>
+      <div className="px-4">
+        {/* Card encimada al mapa con status + timeline */}
+        <div className="bg-card border border-border rounded-t-xl rounded-b-lg p-4 -mt-6 relative z-20 shadow-xl mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <span className="font-mono text-sm text-muted-foreground">Pedido #{order.id}</span>
+            <StatusBadge status={order.status} />
+          </div>
+          <OrderTimeline order={order} />
         </div>
-        <div>
-          <p className="font-body text-xs text-base-light/50 mb-1">Entrega</p>
-          <p className="font-body text-sm text-base-light">{order.delivery.address}</p>
-        </div>
+
+        {/* Datos del mensajero */}
         {order.courier && (
-          <div>
-            <p className="font-body text-xs text-base-light/50 mb-1">Mensajero</p>
-            <p className="font-body text-sm text-base-light">{order.courier.name}</p>
+          <div className="bg-card border border-border rounded-lg p-4 mb-4">
+            <p className="font-body text-xs text-muted-foreground mb-1">Mensajero asignado</p>
+            <p className="font-body text-sm text-foreground font-medium">{order.courier.name}</p>
           </div>
         )}
-        {order.notes && (
-          <div>
-            <p className="font-body text-xs text-base-light/50 mb-1">Notas</p>
-            <p className="font-body text-sm text-base-light">{order.notes}</p>
-          </div>
-        )}
-      </div>
 
-      <div className="bg-base-dark border border-base-light/10 rounded-lg p-4 mb-4">
-        <div className="flex items-center justify-between">
+        {/* Detalles del pedido */}
+        <div className="bg-card border border-border rounded-lg p-4 mb-4 space-y-3">
           <div>
-            <p className="font-body text-xs text-base-light/50 mb-1">Pago</p>
-            <p className="font-mono text-lg text-base-light">${order.price}</p>
+            <p className="font-body text-xs text-muted-foreground mb-1">Recolección</p>
+            <p className="font-body text-sm text-foreground">{order.pickup.address}</p>
           </div>
-          {order.payment_status === 'paid' ? (
-            <span className="text-status-delivered font-body text-sm font-medium">Pagado ✓</span>
-          ) : (
-            <button
-              onClick={handlePay}
-              disabled={paying}
-              className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white font-body text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-            >
-              {paying ? 'Procesando...' : 'Pagar ahora'}
-            </button>
+          <div>
+            <p className="font-body text-xs text-muted-foreground mb-1">Entrega</p>
+            <p className="font-body text-sm text-foreground">{order.delivery.address}</p>
+          </div>
+          {order.notes && (
+            <div>
+              <p className="font-body text-xs text-muted-foreground mb-1">Notas</p>
+              <p className="font-body text-sm text-foreground">{order.notes}</p>
+            </div>
           )}
         </div>
+
+        {/* Pago */}
+        <div className="bg-card border border-border rounded-lg p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-body text-xs text-muted-foreground mb-1">Pago</p>
+              <p className="font-mono text-lg text-foreground">${order.price}</p>
+            </div>
+            {order.payment_status === 'paid' ? (
+              <span className="text-status-delivered font-body text-sm font-medium">Pagado ✓</span>
+            ) : (
+              <button
+                onClick={handlePay}
+                disabled={paying}
+                className="bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground font-body text-sm font-medium px-4 py-2 rounded-lg transition-opacity glow-fill"
+              >
+                {paying ? 'Procesando...' : 'Pagar ahora'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Evidencia fotográfica */}
+        {order.evidences && order.evidences.length > 0 && (
+          <div className="bg-card border border-border rounded-lg p-4 mb-4">
+            <p className="font-body text-xs text-muted-foreground mb-3">Evidencia fotográfica</p>
+            <div className="grid grid-cols-2 gap-3">
+              {order.evidences.map((ev, i) => (
+                <div key={i}>
+                  <img src={ev.photo_url} alt={ev.type} className="rounded-lg w-full h-32 object-cover" />
+                  <p className="font-body text-xs text-muted-foreground mt-1">
+                    {ev.type === 'pickup' ? 'Recolección' : 'Entrega'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Historial colapsable */}
+        {order.events && order.events.length > 0 && (
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <button
+              onClick={() => setHistoryOpen((o) => !o)}
+              className="w-full flex items-center justify-between p-4"
+            >
+              <span className="font-body text-xs text-muted-foreground">Historial</span>
+              <ChevronDown
+                size={16}
+                className={`text-muted-foreground transition-transform ${historyOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {historyOpen && (
+              <div className="px-4 pb-4 space-y-2">
+                {order.events.map((event, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <span className="font-body text-sm text-foreground">
+                      {eventLabels[event.event_type] ?? event.event_type}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {new Date(event.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
-      {order.evidences && order.evidences.length > 0 && (
-        <div className="bg-base-dark border border-base-light/10 rounded-lg p-4 mb-4">
-          <p className="font-body text-xs text-base-light/50 mb-3">Evidencia fotográfica</p>
-          <div className="grid grid-cols-2 gap-3">
-            {order.evidences.map((ev, i) => (
-              <div key={i}>
-                <img src={ev.photo_url} alt={ev.type} className="rounded-lg w-full h-32 object-cover" />
-                <p className="font-body text-xs text-base-light/50 mt-1">
-                  {ev.type === 'pickup' ? 'Recolección' : 'Entrega'}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {order.events && order.events.length > 0 && (
-        <div className="bg-base-dark border border-base-light/10 rounded-lg p-4">
-          <p className="font-body text-xs text-base-light/50 mb-3">Historial</p>
-          <div className="space-y-2">
-            {order.events.map((event, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <span className="font-body text-sm text-base-light">
-                  {eventLabels[event.event_type] ?? event.event_type}
-                </span>
-                <span className="font-mono text-xs text-base-light/50">
-                  {new Date(event.created_at).toLocaleString()}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -56,6 +56,9 @@ export interface User {
   phone: string | null;
   status: 'active' | 'inactive' | 'suspended';
   must_change_password: boolean;
+  default_address?: string | null;
+  default_lat?: string | null;
+  default_lng?: string | null;
 }
 
 export interface LoginResponse {

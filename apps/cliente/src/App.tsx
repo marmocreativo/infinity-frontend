@@ -4,6 +4,7 @@ import RegisterPage from './pages/RegisterPage';
 import OrdersListPage from './pages/OrdersListPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import NewOrderPage from './pages/NewOrderPage';
+import ProfilePage from './pages/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -18,6 +19,7 @@ function App() {
           <Route path="/orders" element={<OrdersListPage />} />
           <Route path="/orders/new" element={<NewOrderPage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>
 

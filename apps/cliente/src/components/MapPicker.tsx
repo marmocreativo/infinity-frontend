@@ -1,6 +1,6 @@
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // Fix del ícono default de Leaflet que no carga bien con bundlers como Vite
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -30,11 +30,33 @@ function ClickHandler({ onSelect }: { onSelect: (lat: number, lng: number) => vo
   return null;
 }
 
+// Fuerza el recentrado del mapa cuando la posición cambia por fuera de un click
+// (ej. cuando llega la geolocalización del dispositivo de forma asíncrona)
+function RecenterOnChange({ position }: { position: [number, number] | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (position) {
+      map.setView(position, map.getZoom());
+    }
+  }, [position, map]);
+
+  return null;
+}
+
 export default function MapPicker({ onSelect, initialLat, initialLng }: MapPickerProps) {
   const defaultCenter: [number, number] = [19.4326, -99.1332]; // CDMX como centro default
   const [position, setPosition] = useState<[number, number] | null>(
     initialLat && initialLng ? [initialLat, initialLng] : null
   );
+
+  // Sincroniza cuando initialLat/initialLng llegan después del montaje
+  // (ej. geolocalización del navegador resuelta de forma asíncrona)
+  useEffect(() => {
+    if (initialLat && initialLng) {
+      setPosition([initialLat, initialLng]);
+    }
+  }, [initialLat, initialLng]);
 
   function handleSelect(lat: number, lng: number) {
     setPosition([lat, lng]);
@@ -42,7 +64,7 @@ export default function MapPicker({ onSelect, initialLat, initialLng }: MapPicke
   }
 
   return (
-    <div className="rounded-lg overflow-hidden border border-base-light/10" style={{ height: '250px' }}>
+    <div className="rounded-lg overflow-hidden border border-border" style={{ height: '250px' }}>
       <MapContainer
         center={position ?? defaultCenter}
         zoom={13}
@@ -53,6 +75,7 @@ export default function MapPicker({ onSelect, initialLat, initialLng }: MapPicke
           attribution='&copy; OpenStreetMap contributors'
         />
         <ClickHandler onSelect={handleSelect} />
+        <RecenterOnChange position={position} />
         {position && <Marker position={position} icon={defaultIcon} />}
       </MapContainer>
     </div>
