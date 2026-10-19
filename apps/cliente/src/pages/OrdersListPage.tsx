@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { auth } from '../lib/auth';
 import type { Order } from '../types';
-import StatusBadge from '../components/StatusBadge';
 import Avatar from '../components/Avatar';
-import OrderMapPreview from '../components/OrderMapPreview';
+import OrderTimeline from '../components/OrderTimeline';
 import { Search } from 'lucide-react';
 
 interface OrdersResponse {
   data: Order[];
+  meta?: { current_page: number; last_page: number };
 }
 
 function eventDate(order: Order, type: string): string | null {
@@ -22,6 +22,34 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function OrderCard({ order }: { order: Order }) {
+  return (
+    <Link
+      to={`/orders/${order.id}`}
+      className="block bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors"
+    >
+      <p className="font-mono text-sm text-muted-foreground mb-2">Pedido #{order.id}</p>
+      <p className="font-body text-sm text-foreground truncate mb-3">
+        <span className="text-muted-foreground">Destino:</span> {order.delivery.address}
+      </p>
+
+      {order.courier && order.status !== 'delivered' && order.status !== 'cancelled' && (
+        <div className="flex items-center gap-2 mb-4">
+          <Avatar name={order.courier.name} photoUrl={order.courier.photo_url} size="sm" />
+          <div className="min-w-0">
+            <p className="font-body text-xs text-muted-foreground leading-tight">Tu repartidor</p>
+            <p className="font-body text-sm text-foreground font-medium truncate leading-tight">
+              {order.courier.name}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <OrderTimeline order={order} />
+    </Link>
+  );
+}
+
 export default function OrdersListPage() {
   const user = auth.getUser();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -30,25 +58,49 @@ export default function OrdersListPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    api.get<OrdersResponse>('/cliente/orders')
-      .then((res) => setOrders(res.data))
-      .catch(() => setError('No se pudieron cargar los pedidos.'))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    async function loadAll() {
+      try {
+        let page = 1;
+        let lastPage = 1;
+        let all: Order[] = [];
+
+        do {
+          const res = await api.get<OrdersResponse>(`/cliente/orders?page=${page}`);
+          all = [...all, ...res.data];
+          lastPage = res.meta?.last_page ?? 1;
+          page++;
+        } while (page <= lastPage);
+
+        if (!cancelled) setOrders(all);
+      } catch {
+        if (!cancelled) setError('No se pudieron cargar los pedidos.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadAll();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const activeOrder = useMemo(
-    () => orders.find((o) => o.status !== 'delivered' && o.status !== 'cancelled'),
+  const activeOrders = useMemo(
+    () => orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled'),
     [orders]
   );
 
   const clinicName = orders[0]?.clinic.business_name;
 
   const historicalOrders = useMemo(() => {
-    const delivered = orders.filter((o) => o.status === 'delivered');
-    if (!search.trim()) return delivered;
+    const finished = orders.filter((o) => o.status === 'delivered' || o.status === 'cancelled');
+    if (!search.trim()) return finished;
 
     const q = search.trim().toLowerCase();
-    return delivered.filter((o) => {
+    return finished.filter((o) => {
       const idMatch = String(o.id).includes(q);
       const deliveredAt = eventDate(o, 'delivered');
       const dateMatch = deliveredAt ? formatDate(deliveredAt).toLowerCase().includes(q) : false;
@@ -71,29 +123,15 @@ export default function OrdersListPage() {
         </div>
       </Link>
 
-      {/* Fila 2 — pedido activo */}
-      {activeOrder && (
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
-          <OrderMapPreview pickup={activeOrder.pickup} delivery={activeOrder.delivery} />
-          <Link to={`/orders/${activeOrder.id}`} className="block p-4 hover:bg-border/20 transition-colors">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-mono text-sm text-muted-foreground">Pedido #{activeOrder.id}</span>
-              <StatusBadge status={activeOrder.status} />
-            </div>
-            <p className="font-body text-sm text-foreground truncate">
-              <span className="text-muted-foreground">De:</span> {activeOrder.pickup.address}
-            </p>
-            <p className="font-body text-sm text-foreground truncate">
-              <span className="text-muted-foreground">A:</span> {activeOrder.delivery.address}
-            </p>
-          </Link>
-        </div>
-      )}
+      {/* Fila 2 — pedidos en curso */}
+      {activeOrders.map((order) => (
+        <OrderCard key={order.id} order={order} />
+      ))}
 
       {/* Fila 3 — histórico */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-heading text-base text-foreground font-semibold">Pedidos entregados</h2>
+          <h2 className="font-heading text-base text-foreground font-semibold">Historial</h2>
         </div>
 
         <div className="relative mb-3">
@@ -117,28 +155,7 @@ export default function OrdersListPage() {
 
         <div className="space-y-3">
           {historicalOrders.map((order) => (
-            <Link
-              key={order.id}
-              to={`/orders/${order.id}`}
-              className="block bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-mono text-sm text-muted-foreground">Pedido #{order.id}</span>
-                <StatusBadge status={order.status} />
-              </div>
-
-              <div className="flex items-center gap-3 font-body text-xs text-muted-foreground mb-2">
-                <span>Solicitado: {formatDate(order.created_at)}</span>
-                <span>·</span>
-                <span>Recolectado: {formatDate(eventDate(order, 'picked_up'))}</span>
-                <span>·</span>
-                <span>Entregado: {formatDate(eventDate(order, 'delivered'))}</span>
-              </div>
-
-              <p className="font-body text-sm text-foreground truncate">
-                {order.pickup.address} <span className="text-muted-foreground">→</span> {order.delivery.address}
-              </p>
-            </Link>
+            <OrderCard key={order.id} order={order} />
           ))}
         </div>
       </div>

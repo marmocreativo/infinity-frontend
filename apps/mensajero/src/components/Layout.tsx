@@ -1,6 +1,7 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { auth } from '../lib/auth';
-import { ClipboardList, Clock, LogOut } from 'lucide-react';
+import Avatar from './Avatar';
+import { ClipboardList, Clock, LogOut, User as UserIcon } from 'lucide-react';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -21,9 +22,14 @@ export default function Layout() {
       <header className="border-b border-border px-4 py-3 flex items-center justify-between">
         <img src="/logo.png" alt="Infinity App" className="h-7" />
         <div className="flex items-center gap-3">
-          <span className="font-body text-sm text-muted-foreground hidden sm:inline">
-            {user?.name}
-          </span>
+          {user && (
+            <Link to="/profile" className="flex items-center gap-2" aria-label="Mi perfil">
+              <span className="font-body text-sm text-muted-foreground hidden sm:inline">
+                {user.name}
+              </span>
+              <Avatar name={user.name} photoUrl={user.photo_url} size="sm" />
+            </Link>
+          )}
           <button
             onClick={handleLogout}
             className="text-muted-foreground hover:text-status-cancelled transition-colors"
@@ -46,6 +52,10 @@ export default function Layout() {
         <NavLink to="/shift" className={linkClass}>
           <Clock size={20} />
           Turno
+        </NavLink>
+        <NavLink to="/profile" className={linkClass}>
+          <UserIcon size={20} />
+          Perfil
         </NavLink>
       </nav>
     </div>

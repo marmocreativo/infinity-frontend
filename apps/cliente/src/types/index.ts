@@ -18,6 +18,7 @@ export interface Order {
   courier?: {
     id: number;
     name: string;
+    photo_url?: string | null;
   };
   pickup: {
     address: string;

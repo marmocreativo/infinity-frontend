@@ -54,6 +54,7 @@ export interface User {
   name: string;
   email: string;
   phone: string | null;
+  photo_url?: string | null;
   status: 'active' | 'inactive' | 'suspended';
   must_change_password: boolean;
 }

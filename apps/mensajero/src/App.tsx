@@ -4,6 +4,7 @@ import ChangePasswordPage from './pages/ChangePasswordPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import ShiftPage from './pages/ShiftPage';
+import ProfilePage from './pages/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -19,6 +20,7 @@ function App() {
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />
           <Route path="/shift" element={<ShiftPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>
 

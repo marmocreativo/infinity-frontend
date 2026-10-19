@@ -6,7 +6,9 @@ import StatusBadge from '../components/StatusBadge';
 import PhotoCapture from '../components/PhotoCapture';
 import OrderMapMensajero from '../components/OrderMapMensajero';
 import OrderTimelineMensajero from '../components/OrderTimelineMensajero';
-import { ChevronLeft } from 'lucide-react';
+import AddressActions from '../components/AddressActions';
+import { useShiftStatus } from '../hooks/useShiftStatus';
+import { AlertTriangle, ChevronLeft } from 'lucide-react';
 
 interface OrderResponse {
   data: Order;
@@ -22,6 +24,7 @@ const actionConfig: Partial<Record<OrderStatus, { label: string; endpoint: strin
 export default function OrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { offDuty } = useShiftStatus();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -41,7 +44,7 @@ export default function OrderDetailPage() {
   const action = order ? actionConfig[order.status] : undefined;
 
   async function handleAction() {
-    if (!order || !action) return;
+    if (!order || !action || offDuty) return;
 
     if (action.needsPhoto && !photo) {
       setError('Debes tomar una foto de evidencia.');
@@ -81,7 +84,11 @@ export default function OrderDetailPage() {
         >
           <ChevronLeft size={18} className="text-foreground" />
         </button>
-        <OrderMapMensajero pickup={order.pickup} delivery={order.delivery} />
+        <OrderMapMensajero
+          pickup={order.pickup}
+          delivery={order.delivery}
+          status={order.status}
+        />
       </div>
 
       <div className="px-4">
@@ -97,14 +104,34 @@ export default function OrderDetailPage() {
         {/* Acción según el estado actual */}
         {action && (
           <div className="bg-card border border-border rounded-lg p-4 mb-4 space-y-3">
-            {action.needsPhoto && <PhotoCapture onCapture={setPhoto} />}
+            {offDuty && (
+              <div className="flex items-start gap-2 bg-status-enroute/10 border border-status-enroute/40 rounded-lg p-3">
+                <AlertTriangle size={16} className="text-status-enroute shrink-0 mt-0.5" />
+                <p className="font-body text-xs text-foreground">
+                  Tu turno no ha iniciado. Inícialo para poder realizar acciones en este pedido.{' '}
+                  <Link to="/shift" className="text-primary font-medium underline">
+                    Ir a turno
+                  </Link>
+                </p>
+              </div>
+            )}
+
+            {action.needsPhoto && (
+              <div className={offDuty ? 'pointer-events-none opacity-50' : ''}>
+                <PhotoCapture onCapture={setPhoto} />
+              </div>
+            )}
 
             {error && <p className="font-body text-sm text-status-cancelled">{error}</p>}
 
             <button
               onClick={handleAction}
-              disabled={submitting}
-              className="w-full bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground font-body font-medium px-4 py-3 rounded-lg transition-opacity glow-fill"
+              disabled={submitting || offDuty}
+              className={`w-full font-body font-medium px-4 py-3 rounded-lg transition-opacity ${
+                offDuty
+                  ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                  : 'bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground glow-fill'
+              }`}
             >
               {submitting ? 'Procesando...' : action.label}
             </button>
@@ -112,7 +139,7 @@ export default function OrderDetailPage() {
         )}
 
         {/* Detalles del pedido */}
-        <div className="bg-card border border-border rounded-lg p-4 mb-4 space-y-3">
+        <div className="bg-card border border-border rounded-lg p-4 mb-4 space-y-4">
           <div>
             <p className="font-body text-xs text-muted-foreground mb-1">Clínica</p>
             <p className="font-body text-sm text-foreground">{order.clinic.business_name}</p>
@@ -125,6 +152,12 @@ export default function OrderDetailPage() {
                 Contacto: {order.pickup.contact_name} {order.pickup.contact_phone}
               </p>
             )}
+            <AddressActions
+              address={order.pickup.address}
+              lat={order.pickup.lat}
+              lng={order.pickup.lng}
+              label={`Recolección — Pedido #${order.id}`}
+            />
           </div>
           <div>
             <p className="font-body text-xs text-muted-foreground mb-1">Entrega</p>
@@ -134,6 +167,12 @@ export default function OrderDetailPage() {
                 Contacto: {order.delivery.contact_name} {order.delivery.contact_phone}
               </p>
             )}
+            <AddressActions
+              address={order.delivery.address}
+              lat={order.delivery.lat}
+              lng={order.delivery.lng}
+              label={`Entrega — Pedido #${order.id}`}
+            />
           </div>
           {order.notes && (
             <div>

@@ -5,6 +5,7 @@ import type { Order } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import OrderTimeline from '../components/OrderTimeline';
 import OrderMapFull from '../components/OrderMapFull';
+import Avatar from '../components/Avatar';
 import { ChevronDown, ChevronLeft } from 'lucide-react';
 
 interface OrderResponse {
@@ -63,7 +64,11 @@ export default function OrderDetailPage() {
         >
           <ChevronLeft size={18} className="text-foreground" />
         </Link>
-        <OrderMapFull pickup={order.pickup} delivery={order.delivery} />
+        <OrderMapFull
+          pickup={order.pickup}
+          delivery={order.delivery}
+          showRoute={order.status === 'en_route_delivery' || order.status === 'delivered'}
+        />
       </div>
 
       <div className="px-4">
@@ -78,9 +83,16 @@ export default function OrderDetailPage() {
 
         {/* Datos del mensajero */}
         {order.courier && (
-          <div className="bg-card border border-border rounded-lg p-4 mb-4">
-            <p className="font-body text-xs text-muted-foreground mb-1">Mensajero asignado</p>
-            <p className="font-body text-sm text-foreground font-medium">{order.courier.name}</p>
+          <div className="bg-card border border-border rounded-lg p-4 mb-4 flex items-center gap-4">
+            <Avatar name={order.courier.name} photoUrl={order.courier.photo_url} size="lg" />
+            <div className="min-w-0">
+              <p className="font-body text-xs text-muted-foreground mb-0.5">
+                {order.status === 'delivered' ? 'Entregado por' : 'Tu repartidor'}
+              </p>
+              <p className="font-heading text-base text-foreground font-semibold truncate">
+                {order.courier.name}
+              </p>
+            </div>
           </div>
         )}
 

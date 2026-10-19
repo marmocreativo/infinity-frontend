@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 import type { Order } from '../types';
 import StatusBadge from '../components/StatusBadge';
+import { useShiftStatus } from '../hooks/useShiftStatus';
 
 interface OrdersResponse {
   data: Order[];
@@ -13,6 +15,7 @@ const activeStatuses = ['assigned', 'en_route_pickup', 'picked_up', 'en_route_de
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const { offDuty } = useShiftStatus();
 
   useEffect(() => {
     api.get<OrdersResponse>('/mensajero/orders')
@@ -26,11 +29,32 @@ export default function OrdersPage() {
   );
   const completedOrders = orders.filter((o) => o.status === 'delivered');
 
+  // Sin turno iniciado, los pedidos se ven en gris
+  const mutedClass = 'grayscale opacity-60';
+
   return (
     <div className="p-4 max-w-lg mx-auto pb-24">
       <h1 className="font-heading text-xl text-foreground font-semibold mb-4">
         Mis pedidos
       </h1>
+
+      {offDuty && (
+        <div className="flex items-start gap-3 bg-status-enroute/10 border border-status-enroute/40 rounded-lg p-4 mb-4">
+          <AlertTriangle size={20} className="text-status-enroute shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-body text-sm text-foreground font-medium">Tu turno no ha iniciado</p>
+            <p className="font-body text-xs text-muted-foreground mt-0.5">
+              Inicia tu turno para poder atender tus pedidos.
+            </p>
+            <Link
+              to="/shift"
+              className="inline-block mt-2 bg-primary text-primary-foreground font-body text-xs font-medium px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
+            >
+              Iniciar turno
+            </Link>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="font-body text-muted-foreground">Cargando...</p>
@@ -43,7 +67,11 @@ export default function OrdersPage() {
                 <Link
                   key={order.id}
                   to={`/orders/${order.id}`}
-                  className="block bg-card border-2 border-primary rounded-lg p-5 glow-border transition-opacity hover:opacity-95"
+                  className={`block bg-card rounded-lg p-5 transition-opacity ${
+                    offDuty
+                      ? `border border-border ${mutedClass}`
+                      : 'border-2 border-primary glow-border hover:opacity-95'
+                  }`}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <span className="font-mono text-sm text-muted-foreground">Pedido #{order.id}</span>
@@ -74,7 +102,9 @@ export default function OrdersPage() {
                   <Link
                     key={order.id}
                     to={`/orders/${order.id}`}
-                    className="block bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors"
+                    className={`block bg-card border border-border rounded-lg p-4 transition-colors ${
+                      offDuty ? mutedClass : 'hover:border-primary/50'
+                    }`}
                   >
                     <div className="flex items-start justify-between mb-2">
                       <span className="font-mono text-sm text-muted-foreground">Pedido #{order.id}</span>
