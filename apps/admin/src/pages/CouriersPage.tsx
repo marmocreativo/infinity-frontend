@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../lib/api';
+import { errorMessage } from '../lib/errors';
 import Avatar from '../components/Avatar';
-import { Bike, Car, Truck, Phone, Mail } from 'lucide-react';
+import { Bike, Car, Truck, Phone, Mail, Pencil } from 'lucide-react';
 
 interface Courier {
   id: number;
@@ -24,11 +25,101 @@ const vehicleLabels: Record<string, string> = {
   bike: 'Bicicleta',
 };
 
+const inputClass =
+  'w-full bg-background text-foreground font-body px-3 py-2 rounded-lg border border-border focus:border-primary focus:outline-none text-sm';
+
+const labelClass = 'block font-body text-sm text-foreground mb-1';
+
+function EditCourierForm({
+  courier,
+  onCancel,
+  onSaved,
+}: {
+  courier: Courier;
+  onCancel: () => void;
+  onSaved: (updated: Courier) => void;
+}) {
+  const [name, setName] = useState(courier.name);
+  const [email, setEmail] = useState(courier.email);
+  const [phone, setPhone] = useState(courier.phone ?? '');
+  const [vehicleType, setVehicleType] = useState(courier.courier_profile?.vehicle_type ?? 'motorcycle');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    try {
+      const updated = await api.put<Courier>(`/admin/users/couriers/${courier.id}`, {
+        name,
+        email,
+        phone: phone || null,
+        vehicle_type: vehicleType,
+      });
+      onSaved(updated);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <p className="font-body text-sm font-semibold text-primary">Editar mensajero</p>
+
+      <div>
+        <label className={labelClass}>Nombre</label>
+        <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div>
+        <label className={labelClass}>Email</label>
+        <input type="email" className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} required />
+      </div>
+      <div>
+        <label className={labelClass}>Teléfono</label>
+        <input className={inputClass} value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </div>
+      <div>
+        <label className={labelClass}>Vehículo</label>
+        <select className={inputClass} value={vehicleType} onChange={(e) => setVehicleType(e.target.value)}>
+          <option value="motorcycle">Motocicleta</option>
+          <option value="car">Auto</option>
+          <option value="bike">Bicicleta</option>
+        </select>
+      </div>
+
+      {error && <p className="font-body text-sm text-status-cancelled">{error}</p>}
+
+      <div className="flex gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 bg-background border border-border text-foreground font-body text-sm px-3 py-2 rounded-lg hover:opacity-90 transition-opacity"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="flex-1 bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground font-body text-sm font-medium px-3 py-2 rounded-lg transition-opacity glow-fill"
+        >
+          {saving ? 'Guardando...' : 'Guardar'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function CouriersPage() {
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [newCredentials, setNewCredentials] = useState<{ email: string; password: string } | null>(null);
 
   const [name, setName] = useState('');
@@ -50,6 +141,7 @@ export default function CouriersPage() {
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     setCreating(true);
+    setCreateError(null);
     try {
       const res = await api.post<{ credentials: { email: string; password: string } }>('/admin/users/couriers', {
         name,
@@ -63,6 +155,8 @@ export default function CouriersPage() {
       setPhone('');
       setShowForm(false);
       loadCouriers();
+    } catch (err) {
+      setCreateError(errorMessage(err));
     } finally {
       setCreating(false);
     }
@@ -74,8 +168,10 @@ export default function CouriersPage() {
     loadCouriers();
   }
 
-  const inputClass =
-    'w-full bg-background text-foreground font-body px-3 py-2 rounded-lg border border-border focus:border-primary focus:outline-none text-sm';
+  function handleSaved(updated: Courier) {
+    setCouriers((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
+    setEditingId(null);
+  }
 
   return (
     <div className="p-4 sm:p-6">
@@ -109,19 +205,19 @@ export default function CouriersPage() {
         <form onSubmit={handleCreate} className="bg-card border border-border rounded-lg p-4 mb-6 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-body text-sm text-foreground mb-1">Nombre</label>
+              <label className={labelClass}>Nombre</label>
               <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div>
-              <label className="block font-body text-sm text-foreground mb-1">Email</label>
+              <label className={labelClass}>Email</label>
               <input type="email" className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div>
-              <label className="block font-body text-sm text-foreground mb-1">Teléfono</label>
+              <label className={labelClass}>Teléfono</label>
               <input className={inputClass} value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
             <div>
-              <label className="block font-body text-sm text-foreground mb-1">Vehículo</label>
+              <label className={labelClass}>Vehículo</label>
               <select className={inputClass} value={vehicleType} onChange={(e) => setVehicleType(e.target.value)}>
                 <option value="motorcycle">Motocicleta</option>
                 <option value="car">Auto</option>
@@ -129,6 +225,9 @@ export default function CouriersPage() {
               </select>
             </div>
           </div>
+
+          {createError && <p className="font-body text-sm text-status-cancelled">{createError}</p>}
+
           <button
             type="submit"
             disabled={creating}
@@ -144,66 +243,85 @@ export default function CouriersPage() {
       ) : couriers.length === 0 ? (
         <p className="font-body text-muted-foreground">Aún no hay mensajeros registrados.</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
           {couriers.map((courier) => {
             const VehicleIcon = vehicleIcons[courier.courier_profile?.vehicle_type] ?? Truck;
             const isOnDuty = courier.courier_profile?.is_on_duty;
 
             return (
               <div key={courier.id} className="bg-card border border-border rounded-lg p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Avatar name={courier.name} />
-                    <div className="min-w-0">
-                      <p className="font-body text-sm text-foreground font-medium truncate">{courier.name}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <VehicleIcon size={12} className="text-muted-foreground shrink-0" />
+                {editingId === courier.id ? (
+                  <EditCourierForm
+                    courier={courier}
+                    onCancel={() => setEditingId(null)}
+                    onSaved={handleSaved}
+                  />
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar name={courier.name} />
+                        <div className="min-w-0">
+                          <p className="font-body text-sm text-foreground font-medium truncate">{courier.name}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <VehicleIcon size={12} className="text-muted-foreground shrink-0" />
+                            <span className="font-body text-xs text-muted-foreground">
+                              {vehicleLabels[courier.courier_profile?.vehicle_type] ?? '—'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <span
+                        className={`font-body text-xs px-2 py-1 rounded-full shrink-0 ${
+                          courier.status === 'active'
+                            ? 'bg-status-delivered text-white'
+                            : 'bg-status-cancelled text-white'
+                        }`}
+                      >
+                        {courier.status === 'active' ? 'Activo' : 'Suspendido'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 mb-3">
+                      <div className="flex items-center gap-2">
+                        <Mail size={13} className="text-muted-foreground shrink-0" />
+                        <span className="font-body text-xs text-muted-foreground truncate">{courier.email}</span>
+                      </div>
+                      {courier.phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone size={13} className="text-muted-foreground shrink-0" />
+                          <span className="font-body text-xs text-muted-foreground">{courier.phone}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-border">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${isOnDuty ? 'bg-status-delivered' : 'bg-muted-foreground'}`} />
                         <span className="font-body text-xs text-muted-foreground">
-                          {vehicleLabels[courier.courier_profile?.vehicle_type] ?? '—'}
+                          {isOnDuty ? 'En turno' : 'Fuera de turno'}
                         </span>
                       </div>
+
+                      <div className="flex items-center gap-4">
+                        <button
+                          onClick={() => setEditingId(courier.id)}
+                          className="flex items-center gap-1 font-body text-xs text-primary hover:opacity-80"
+                        >
+                          <Pencil size={12} />
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => toggleStatus(courier)}
+                          className="font-body text-xs text-primary hover:opacity-80"
+                        >
+                          {courier.status === 'active' ? 'Suspender' : 'Reactivar'}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-
-                  <span
-                    className={`font-body text-xs px-2 py-1 rounded-full shrink-0 ${
-                      courier.status === 'active'
-                        ? 'bg-status-delivered text-white'
-                        : 'bg-status-cancelled text-white'
-                    }`}
-                  >
-                    {courier.status === 'active' ? 'Activo' : 'Suspendido'}
-                  </span>
-                </div>
-
-                <div className="space-y-1.5 mb-3">
-                  <div className="flex items-center gap-2">
-                    <Mail size={13} className="text-muted-foreground shrink-0" />
-                    <span className="font-body text-xs text-muted-foreground truncate">{courier.email}</span>
-                  </div>
-                  {courier.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone size={13} className="text-muted-foreground shrink-0" />
-                      <span className="font-body text-xs text-muted-foreground">{courier.phone}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-border">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full ${isOnDuty ? 'bg-status-delivered' : 'bg-muted-foreground'}`} />
-                    <span className="font-body text-xs text-muted-foreground">
-                      {isOnDuty ? 'En turno' : 'Fuera de turno'}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => toggleStatus(courier)}
-                    className="font-body text-xs text-primary hover:opacity-80"
-                  >
-                    {courier.status === 'active' ? 'Suspender' : 'Reactivar'}
-                  </button>
-                </div>
+                  </>
+                )}
               </div>
             );
           })}

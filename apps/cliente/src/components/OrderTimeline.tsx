@@ -29,6 +29,14 @@ export default function OrderTimeline({ order }: OrderTimelineProps) {
     );
   }
 
+  if (order.status === 'returned') {
+    return (
+      <div className="bg-status-cancelled/10 border border-status-cancelled/30 rounded-lg py-3 px-4 text-center">
+        <span className="font-body text-sm text-status-cancelled font-medium">Retorno a remitente</span>
+      </div>
+    );
+  }
+
   const currentStage = getCurrentStage(order);
 
   return (

@@ -30,6 +30,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
 
   if (!response.ok) {
+    // Token inválido o expirado: limpia la sesión y manda al login
+    if (response.status === 401 && auth) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
     const errorBody = await response.json().catch(() => null);
     throw new ApiError(response.status, errorBody?.message ?? 'Error de conexión', errorBody);
   }

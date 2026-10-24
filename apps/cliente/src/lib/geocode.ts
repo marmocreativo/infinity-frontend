@@ -1,3 +1,5 @@
+import { isInMexico } from './mexico';
+
 export interface GeocodeResult {
   lat: number;
   lng: number;
@@ -7,7 +9,11 @@ export interface GeocodeResult {
 export async function geocodeAddress(query: string): Promise<GeocodeResult | null> {
   if (!query.trim()) return null;
 
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
+  // Solo México; el viewbox da prioridad a resultados del Valle de México
+  const url =
+    'https://nominatim.openstreetmap.org/search?format=json&limit=1' +
+    '&countrycodes=mx&viewbox=-99.45,19.80,-98.80,19.10&bounded=0' +
+    `&q=${encodeURIComponent(query)}`;
 
   try {
     const res = await fetch(url, {
@@ -17,9 +23,14 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult | nul
 
     if (!data || data.length === 0) return null;
 
+    const lat = parseFloat(data[0].lat);
+    const lng = parseFloat(data[0].lon);
+
+    if (!isInMexico(lat, lng)) return null;
+
     return {
-      lat: parseFloat(data[0].lat),
-      lng: parseFloat(data[0].lon),
+      lat,
+      lng,
       displayName: data[0].display_name,
     };
   } catch {

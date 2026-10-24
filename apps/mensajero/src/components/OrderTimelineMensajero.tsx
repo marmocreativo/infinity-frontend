@@ -26,6 +26,14 @@ export default function OrderTimelineMensajero({ order }: OrderTimelineMensajero
     );
   }
 
+  if (order.status === 'returned') {
+    return (
+      <div className="bg-status-cancelled/10 border border-status-cancelled/30 rounded-lg py-3 px-4 text-center">
+        <span className="font-body text-sm text-status-cancelled font-medium">Retorno a remitente</span>
+      </div>
+    );
+  }
+
   if (order.status === 'pending') {
     return (
       <div className="bg-status-pending/10 border border-status-pending/30 rounded-lg py-3 px-4 text-center">

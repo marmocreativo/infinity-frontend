@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../lib/auth';
 import { ApiError } from '../lib/api';
+import { setupPushNotifications } from '../lib/firebase';
 
 export function useAuth() {
   const navigate = useNavigate();
@@ -19,6 +20,8 @@ export function useAuth() {
         await auth.logout();
         return;
       }
+
+      setupPushNotifications();
 
       navigate('/dashboard');
     } catch (err) {

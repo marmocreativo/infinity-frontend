@@ -5,7 +5,8 @@ export type OrderStatus =
   | 'picked_up'
   | 'en_route_delivery'
   | 'delivered'
-  | 'cancelled';
+  | 'cancelled'
+  | 'returned';
 
 export interface Order {
   id: number;
@@ -35,9 +36,22 @@ export interface Order {
   };
   price: string;
   payment_status: 'pending' | 'paid' | 'failed';
+  distance_km?: string;
+  is_urgent?: boolean;
+  urgent_surcharge?: string;
+  urgent_deadline_at?: string | null;
+  quoted_price?: string;
+  amount_paid?: string;
+  amount_due?: number;
+  refunded_amount?: string;
+  cancellation_fee?: string;
+  return_surcharge?: string;
+  return_reason?: string | null;
+  can_cancel?: boolean;
+  cancel_fee_preview?: number | null;
   notes: string | null;
   evidences?: Array<{
-    type: 'pickup' | 'delivery';
+    type: 'pickup' | 'delivery' | 'return';
     photo_url: string;
     taken_at: string;
   }>;

@@ -15,6 +15,8 @@ export const auth = {
   async logout(): Promise<void> {
     try {
       await api.post('/auth/logout');
+    } catch {
+      // Si el token ya no es válido, igual se limpia la sesión local
     } finally {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);

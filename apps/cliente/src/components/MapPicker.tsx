@@ -1,6 +1,7 @@
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useEffect, useState } from 'react';
+import { isInMexico, MEXICO_BOUNDS } from '../lib/mexico';
 
 // Fix del ícono default de Leaflet que no carga bien con bundlers como Vite
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -59,6 +60,7 @@ export default function MapPicker({ onSelect, initialLat, initialLng }: MapPicke
   }, [initialLat, initialLng]);
 
   function handleSelect(lat: number, lng: number) {
+    if (!isInMexico(lat, lng)) return;
     setPosition([lat, lng]);
     onSelect(lat, lng);
   }
@@ -68,6 +70,9 @@ export default function MapPicker({ onSelect, initialLat, initialLng }: MapPicke
       <MapContainer
         center={position ?? defaultCenter}
         zoom={13}
+        minZoom={5}
+        maxBounds={MEXICO_BOUNDS}
+        maxBoundsViscosity={1}
         style={{ height: '100%', width: '100%' }}
       >
         <TileLayer

@@ -27,7 +27,7 @@ export default function OrdersPage() {
   const otherActiveOrders = orders.filter(
     (o) => activeStatuses.includes(o.status) && o.status !== 'assigned'
   );
-  const completedOrders = orders.filter((o) => o.status === 'delivered');
+  const completedOrders = orders.filter((o) => o.status === 'delivered' || o.status === 'returned');
 
   // Sin turno iniciado, los pedidos se ven en gris
   const mutedClass = 'grayscale opacity-60';
@@ -74,7 +74,14 @@ export default function OrdersPage() {
                   }`}
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <span className="font-mono text-sm text-muted-foreground">Pedido #{order.id}</span>
+                    <span className="font-mono text-sm text-muted-foreground flex items-center gap-2">
+                      Pedido #{order.id}
+                      {order.is_urgent && (
+                        <span className="bg-status-enroute text-black font-body text-[10px] font-bold px-1.5 py-0.5 rounded">
+                          URGENTE
+                        </span>
+                      )}
+                    </span>
                     <StatusBadge status={order.status} />
                   </div>
 
@@ -107,7 +114,14 @@ export default function OrdersPage() {
                     }`}
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <span className="font-mono text-sm text-muted-foreground">Pedido #{order.id}</span>
+                      <span className="font-mono text-sm text-muted-foreground flex items-center gap-2">
+                      Pedido #{order.id}
+                      {order.is_urgent && (
+                        <span className="bg-status-enroute text-black font-body text-[10px] font-bold px-1.5 py-0.5 rounded">
+                          URGENTE
+                        </span>
+                      )}
+                    </span>
                       <StatusBadge status={order.status} />
                     </div>
 

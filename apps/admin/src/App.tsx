@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -7,8 +8,16 @@ import ClinicsPage from './pages/ClinicsPage';
 import ReportsPage from './pages/ReportsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+import { setupPushNotifications } from './lib/firebase';
 
 function App() {
+  // Sesión ya iniciada: asegura que este navegador esté registrado para push
+  useEffect(() => {
+    if (localStorage.getItem('auth_token')) {
+      setupPushNotifications();
+    }
+  }, []);
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

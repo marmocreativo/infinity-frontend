@@ -8,6 +8,7 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   en_route_delivery: { label: 'En camino a entregar', color: 'bg-status-enroute' },
   delivered: { label: 'Entregado', color: 'bg-status-delivered' },
   cancelled: { label: 'Cancelado', color: 'bg-status-cancelled' },
+  returned: { label: 'Retorno a remitente', color: 'bg-status-cancelled' },
 };
 
 export default function StatusBadge({ status }: { status: OrderStatus }) {
