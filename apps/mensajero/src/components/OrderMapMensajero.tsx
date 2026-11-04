@@ -45,7 +45,7 @@ function buildWaypoints(
   pickup: LatLng,
   delivery: LatLng
 ): LatLng[] {
-  const beforePickup = status === 'assigned' || status === 'en_route_pickup';
+  const beforePickup = status === 'assigned' || status === 'en_route_pickup' || status === 'arrived_pickup';
   const afterPickup = status === 'picked_up' || status === 'en_route_delivery';
 
   if (beforePickup) return self ? [self, pickup, delivery] : [pickup, delivery];

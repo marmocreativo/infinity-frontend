@@ -19,6 +19,7 @@ const eventLabels: Record<string, string> = {
   created: 'Pedido creado',
   assigned: 'Mensajero asignado',
   en_route_pickup: 'Mensajero en camino a recolectar',
+  arrived_pickup: 'Mensajero llegó al punto de recolección',
   picked_up: 'Muestra recolectada',
   en_route_delivery: 'Mensajero en camino a entregar',
   delivered: 'Pedido entregado',
@@ -175,11 +176,42 @@ export default function OrderDetailPage() {
           <div>
             <p className="font-body text-xs text-muted-foreground mb-1">Recolección</p>
             <p className="font-body text-sm text-foreground">{order.pickup.address}</p>
+            {order.pickup.contact_name && (
+              <p className="font-body text-xs text-muted-foreground">
+                Contacto: {order.pickup.contact_name} {order.pickup.contact_phone}
+              </p>
+            )}
           </div>
+          {(order.stops ?? []).filter((s) => s.type === 'pickup').map((s) => (
+            <div key={s.id}>
+              <p className="font-body text-xs text-muted-foreground mb-1">
+                Recolección adicional {s.sequence}{s.completed_at ? ' · ✔ recolectada' : ''}
+              </p>
+              <p className="font-body text-sm text-foreground">{s.address}</p>
+              <p className="font-body text-xs text-muted-foreground">Contacto: {s.contact_name} {s.contact_phone}</p>
+            </div>
+          ))}
           <div>
             <p className="font-body text-xs text-muted-foreground mb-1">Entrega</p>
             <p className="font-body text-sm text-foreground">{order.delivery.address}</p>
+            {order.delivery.contact_name && (
+              <p className="font-body text-xs text-muted-foreground">
+                Contacto: {order.delivery.contact_name} {order.delivery.contact_phone}
+              </p>
+            )}
           </div>
+          {(order.stops ?? []).filter((s) => s.type === 'delivery').map((s) => (
+            <div key={s.id}>
+              <p className="font-body text-xs text-muted-foreground mb-1">
+                Entrega adicional {s.sequence}{s.completed_at ? ' · ✔ entregada' : ''}
+              </p>
+              <p className="font-body text-sm text-foreground">{s.address}</p>
+              <p className="font-body text-xs text-muted-foreground">Contacto: {s.contact_name} {s.contact_phone}</p>
+            </div>
+          ))}
+          {order.requires_invoice && (
+            <p className="font-body text-xs text-primary font-medium">Factura solicitada</p>
+          )}
           {order.notes && (
             <div>
               <p className="font-body text-xs text-muted-foreground mb-1">Notas</p>
@@ -266,8 +298,8 @@ export default function OrderDetailPage() {
                 </p>
                 <p className="font-body text-xs text-muted-foreground">
                   {cancelFee === 0
-                    ? 'Como aún no tiene mensajero asignado, no se te cobrará nada.'
-                    : `Como ya tiene mensajero asignado, se cobrará ${money.format(cancelFee)} (${cancelPct}% del servicio).`}
+                    ? 'No se te cobrará nada: el mensajero aún no llega al punto de recolección.'
+                    : `Como el mensajero ya llegó al punto de recolección, se cobrará ${money.format(cancelFee)} (${cancelPct}% del servicio).`}
                   {amountPaid > 0 && refundIfCancelled > 0 &&
                     ` Se te reembolsarán ${money.format(refundIfCancelled)}.`}
                 </p>

@@ -6,6 +6,7 @@ export const ACTIVE_STATUSES = [
   'pending',
   'assigned',
   'en_route_pickup',
+  'arrived_pickup',
   'picked_up',
   'en_route_delivery',
 ];

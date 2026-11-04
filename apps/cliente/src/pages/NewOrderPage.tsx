@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LocateFixed, Zap } from 'lucide-react';
+import { LocateFixed, Plus, Zap } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { auth } from '../lib/auth';
 import { geocodeAddress, reverseGeocode } from '../lib/geocode';
 import { isInMexico } from '../lib/mexico';
 import MapPicker from '../components/MapPicker';
 import RoutePreviewMap from '../components/RoutePreviewMap';
+import StopFields, { type StopForm } from '../components/StopFields';
 import type { Order } from '../types';
 
 const TOTAL_STEPS = 3;
+const MAX_STOPS = 6;
 
 const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
@@ -62,6 +64,42 @@ export default function NewOrderPage() {
 
   const [notes, setNotes] = useState('');
   const [isUrgent, setIsUrgent] = useState(false);
+  const [requiresInvoice, setRequiresInvoice] = useState(false);
+
+  // Paradas adicionales de recolección / entrega
+  const [stops, setStops] = useState<StopForm[]>([]);
+  const stopUid = useRef(0);
+
+  function addStop(type: StopForm['type']) {
+    if (stops.length >= MAX_STOPS) {
+      setError(`Puedes agregar hasta ${MAX_STOPS} paradas adicionales.`);
+      return;
+    }
+    setError(null);
+    stopUid.current += 1;
+    setStops((prev) => [
+      ...prev,
+      { uid: stopUid.current, type, address: '', lat: null, lng: null, contactName: '', contactPhone: '' },
+    ]);
+  }
+
+  function updateStop(uid: number, patch: Partial<StopForm>) {
+    setStops((prev) => prev.map((s) => (s.uid === uid ? { ...s, ...patch } : s)));
+  }
+
+  function removeStop(uid: number) {
+    setStops((prev) => prev.filter((s) => s.uid !== uid));
+  }
+
+  // Lo que se envía al backend (solo paradas completas)
+  const stopsPayload = stops.map((s) => ({
+    type: s.type,
+    address: s.address,
+    lat: s.lat,
+    lng: s.lng,
+    contact_name: s.contactName.trim(),
+    contact_phone: s.contactPhone.trim(),
+  }));
 
   const [quote, setQuote] = useState<RouteQuote | null>(null);
   const [quoting, setQuoting] = useState(false);
@@ -158,6 +196,7 @@ export default function NewOrderPage() {
       pickup_lng: pickupCoords.lng,
       delivery_lat: deliveryCoords.lat,
       delivery_lng: deliveryCoords.lng,
+      stops: stops.map((s) => ({ type: s.type, lat: s.lat, lng: s.lng })),
     })
       .then((res) => {
         if (!cancelled) setQuote(res.data);
@@ -172,6 +211,7 @@ export default function NewOrderPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, pickupCoords, deliveryCoords]);
 
   const inputClass =
@@ -181,6 +221,25 @@ export default function NewOrderPage() {
   const blocked = serviceStatus !== null && !serviceStatus.can_order;
   const urgentSurcharge = quote?.urgent_surcharge ?? serviceStatus?.urgent_surcharge ?? 0;
   const total = quote ? quote.route_price + (isUrgent ? quote.urgent_surcharge : 0) : null;
+
+  function validateStops(type: StopForm['type']): boolean {
+    for (const s of stops.filter((x) => x.type === type)) {
+      const where = type === 'pickup' ? 'recolección' : 'entrega';
+      if (!s.address.trim() || s.lat === null || s.lng === null) {
+        setError(`Completa la dirección y ubicación de cada parada de ${where}.`);
+        return false;
+      }
+      if (!isInMexico(s.lat, s.lng)) {
+        setError('Todas las paradas deben estar dentro de México.');
+        return false;
+      }
+      if (!s.contactName.trim() || !s.contactPhone.trim()) {
+        setError(`Cada parada de ${where} necesita nombre y teléfono de contacto.`);
+        return false;
+      }
+    }
+    return true;
+  }
 
   function validateStep(): boolean {
     setError(null);
@@ -195,12 +254,22 @@ export default function NewOrderPage() {
         setError('Confirma la dirección y ubicación de recolección.');
         return false;
       }
+      if (!pickupContactName.trim() || !pickupContactPhone.trim()) {
+        setError('El nombre y teléfono de contacto en recolección son obligatorios.');
+        return false;
+      }
+      if (!validateStops('pickup')) return false;
     }
     if (step === 2) {
       if (!deliveryAddress || !deliveryCoords) {
         setError('Escribe la dirección de entrega y confirma la ubicación en el mapa.');
         return false;
       }
+      if (!deliveryContactName.trim() || !deliveryContactPhone.trim()) {
+        setError('El nombre y teléfono de contacto en entrega son obligatorios.');
+        return false;
+      }
+      if (!validateStops('delivery')) return false;
     }
     if (pickupCoords && !isInMexico(pickupCoords.lat, pickupCoords.lng)) {
       setError('La ubicación de recolección debe estar dentro de México.');
@@ -242,15 +311,17 @@ export default function NewOrderPage() {
         pickup_address: pickupAddress,
         pickup_lat: pickupCoords.lat,
         pickup_lng: pickupCoords.lng,
-        pickup_contact_name: pickupContactName || null,
-        pickup_contact_phone: pickupContactPhone || null,
+        pickup_contact_name: pickupContactName.trim(),
+        pickup_contact_phone: pickupContactPhone.trim(),
         delivery_address: deliveryAddress,
         delivery_lat: deliveryCoords.lat,
         delivery_lng: deliveryCoords.lng,
-        delivery_contact_name: deliveryContactName || null,
-        delivery_contact_phone: deliveryContactPhone || null,
+        delivery_contact_name: deliveryContactName.trim(),
+        delivery_contact_phone: deliveryContactPhone.trim(),
         notes: notes || null,
         is_urgent: isUrgent,
+        requires_invoice: requiresInvoice,
+        stops: stopsPayload,
       });
 
       navigate(`/orders/${res.data.id}`);
@@ -342,22 +413,44 @@ export default function NewOrderPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>Contacto (opcional)</label>
+                <label className={labelClass}>Contacto *</label>
                 <input
                   className={inputClass}
                   value={pickupContactName}
                   onChange={(e) => setPickupContactName(e.target.value)}
+                  required
                 />
               </div>
               <div>
-                <label className={labelClass}>Teléfono (opcional)</label>
+                <label className={labelClass}>Teléfono *</label>
                 <input
+                  type="tel"
                   className={inputClass}
                   value={pickupContactPhone}
                   onChange={(e) => setPickupContactPhone(e.target.value)}
+                  required
                 />
               </div>
             </div>
+
+            {stops.filter((s) => s.type === 'pickup').map((s, i) => (
+              <StopFields
+                key={s.uid}
+                stop={s}
+                index={i + 1}
+                onChange={(patch) => updateStop(s.uid, patch)}
+                onRemove={() => removeStop(s.uid)}
+              />
+            ))}
+
+            <button
+              type="button"
+              onClick={() => addStop('pickup')}
+              className="w-full flex items-center justify-center gap-2 border border-dashed border-primary text-primary font-body text-sm font-medium px-4 py-2 rounded-lg hover:bg-primary/10 transition-colors"
+            >
+              <Plus size={16} />
+              Agregar parada de recolección
+            </button>
           </section>
         )}
 
@@ -402,22 +495,44 @@ export default function NewOrderPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelClass}>Contacto (opcional)</label>
+                  <label className={labelClass}>Contacto *</label>
                   <input
                     className={inputClass}
                     value={deliveryContactName}
                     onChange={(e) => setDeliveryContactName(e.target.value)}
+                    required
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>Teléfono (opcional)</label>
+                  <label className={labelClass}>Teléfono *</label>
                   <input
+                    type="tel"
                     className={inputClass}
                     value={deliveryContactPhone}
                     onChange={(e) => setDeliveryContactPhone(e.target.value)}
+                    required
                   />
                 </div>
               </div>
+
+              {stops.filter((s) => s.type === 'delivery').map((s, i) => (
+                <StopFields
+                  key={s.uid}
+                  stop={s}
+                  index={i + 1}
+                  onChange={(patch) => updateStop(s.uid, patch)}
+                  onRemove={() => removeStop(s.uid)}
+                />
+              ))}
+
+              <button
+                type="button"
+                onClick={() => addStop('delivery')}
+                className="w-full flex items-center justify-center gap-2 border border-dashed border-primary text-primary font-body text-sm font-medium px-4 py-2 rounded-lg hover:bg-primary/10 transition-colors"
+              >
+                <Plus size={16} />
+                Agregar parada de entrega
+              </button>
             </section>
 
             <div>
@@ -447,7 +562,18 @@ export default function NewOrderPage() {
               )}
 
               {quote && pickupCoords && deliveryCoords && (
-                <RoutePreviewMap pickup={pickupCoords} delivery={deliveryCoords} route={quote.route} />
+                <RoutePreviewMap
+                  pickup={pickupCoords}
+                  delivery={deliveryCoords}
+                  route={quote.route}
+                  stops={stops
+                    .filter((s) => s.lat !== null && s.lng !== null)
+                    .map((s, i) => ({
+                      lat: s.lat as number,
+                      lng: s.lng as number,
+                      label: s.type === 'pickup' ? `Recolección extra ${i + 1}` : `Entrega extra ${i + 1}`,
+                    }))}
+                />
               )}
 
               {quoteError && <p className="font-body text-sm text-status-cancelled">{quoteError}</p>}
@@ -503,6 +629,26 @@ export default function NewOrderPage() {
               </div>
             </label>
 
+            {/* Factura */}
+            <label
+              className={`flex items-start gap-3 rounded-lg p-4 cursor-pointer border-2 transition-colors ${
+                requiresInvoice ? 'border-primary bg-primary/10' : 'border-border bg-card'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={requiresInvoice}
+                onChange={(e) => setRequiresInvoice(e.target.checked)}
+                className="mt-1 accent-primary"
+              />
+              <div className="flex-1">
+                <p className="font-body text-sm text-foreground font-semibold">Requiero factura</p>
+                <p className="font-body text-xs text-muted-foreground mt-0.5">
+                  Se emitirá con los datos fiscales de tu clínica.
+                </p>
+              </div>
+            </label>
+
             {/* Precio */}
             {quote && total !== null && (
               <section className="bg-card border border-border rounded-lg p-4 space-y-2">
@@ -546,6 +692,17 @@ export default function NewOrderPage() {
                   </p>
                 )}
               </div>
+              {stops.map((s, i) => (
+                <div key={s.uid}>
+                  <p className="font-body text-xs text-muted-foreground mb-1">
+                    {s.type === 'pickup' ? 'Recolección adicional' : 'Entrega adicional'} {i + 1}
+                  </p>
+                  <p className="font-body text-sm text-foreground">{s.address}</p>
+                  <p className="font-body text-xs text-muted-foreground">
+                    Contacto: {s.contactName} {s.contactPhone}
+                  </p>
+                </div>
+              ))}
               {notes && (
                 <div>
                   <p className="font-body text-xs text-muted-foreground mb-1">Notas</p>
@@ -558,8 +715,8 @@ export default function NewOrderPage() {
             {serviceStatus && (
               <div className="font-body text-xs text-muted-foreground space-y-1 px-1">
                 <p>
-                  • Cancelar antes de que se asigne un mensajero no tiene costo. Ya asignado y antes de la
-                  recolección, se cobra el {serviceStatus.cancellation_fee_percent}%.
+                  • Cancelar no tiene costo mientras el mensajero no haya llegado al punto de recolección. Si
+                  ya llegó y se cancela, se cobra el {serviceStatus.cancellation_fee_percent}%.
                 </p>
                 <p>
                   • Si no se puede entregar (nadie recibe o el laboratorio está cerrado), la muestra regresa a

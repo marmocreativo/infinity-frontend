@@ -13,7 +13,8 @@ const STOPS: { status: OrderStatus; label: string }[] = [
 ];
 
 function getCurrentStageIndex(status: OrderStatus): number {
-  const idx = STOPS.findIndex((s) => s.status === status);
+  const normalized = status === 'arrived_pickup' ? 'en_route_pickup' : status;
+  const idx = STOPS.findIndex((s) => s.status === normalized);
   return idx === -1 ? 0 : idx;
 }
 

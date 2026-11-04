@@ -10,7 +10,7 @@ interface OrdersResponse {
   data: Order[];
 }
 
-const activeStatuses = ['assigned', 'en_route_pickup', 'picked_up', 'en_route_delivery'];
+const activeStatuses = ['assigned', 'en_route_pickup', 'arrived_pickup', 'picked_up', 'en_route_delivery'];
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);

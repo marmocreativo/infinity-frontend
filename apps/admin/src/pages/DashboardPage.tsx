@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { Order, OrderStatus } from '../types';
 import StatusBadge from '../components/StatusBadge';
+import OrderContactInfo from '../components/OrderContactInfo';
 import CourierMapWidget from '../components/CourierMapWidget';
 import { useActiveOrders } from '../hooks/useActiveOrders';
-import { Users, Truck, Package, AlertTriangle } from 'lucide-react';
+import { Users, Truck, Package, AlertTriangle, ChevronDown } from 'lucide-react';
 
 interface OrdersResponse {
   data: Order[];
@@ -14,13 +14,17 @@ interface OrdersResponse {
 interface Courier {
   id: number;
   name: string;
+  status: 'active' | 'inactive' | 'suspended';
 }
+
+type AssignmentMode = 'manual' | 'automatic';
 
 const statusOptions: { value: OrderStatus | ''; label: string }[] = [
   { value: '', label: 'Todos' },
   { value: 'pending', label: 'Pendiente' },
   { value: 'assigned', label: 'Asignado' },
   { value: 'en_route_pickup', label: 'En camino a recolectar' },
+  { value: 'arrived_pickup', label: 'En punto de recolección' },
   { value: 'picked_up', label: 'Recolectado' },
   { value: 'en_route_delivery', label: 'En camino a entregar' },
   { value: 'delivered', label: 'Entregado' },
@@ -35,6 +39,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
   const [assigningId, setAssigningId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [mode, setMode] = useState<AssignmentMode | null>(null);
+  const [savingMode, setSavingMode] = useState(false);
 
   // Pedidos pendientes y en curso (independiente del filtro de "Todos los pedidos")
   const { orders: activeOrders, reload: reloadActive } = useActiveOrders();
@@ -52,12 +59,31 @@ export default function DashboardPage() {
   }, [loadOrders]);
 
   useEffect(() => {
-    api.get<{ data: { id: number; name: string; courier_profile: unknown }[] }>('/admin/users/couriers')
-      .then((res) => setCouriers(res.data.map((c) => ({ id: c.id, name: c.name }))));
+    api.get<{ data: { id: number; name: string; status: Courier['status'] }[] }>('/admin/users/couriers')
+      .then((res) => setCouriers(res.data.map((c) => ({ id: c.id, name: c.name, status: c.status }))));
+
+    api.get<{ mode: AssignmentMode }>('/admin/assignment-settings')
+      .then((res) => setMode(res.mode))
+      .catch(() => {});
 
     api.get<{ data: unknown[] }>('/admin/users/clinics')
       .then((res) => setClinicCount(res.data.length));
   }, []);
+
+  async function handleToggleMode() {
+    if (!mode) return;
+    const next: AssignmentMode = mode === 'manual' ? 'automatic' : 'manual';
+    setSavingMode(true);
+    try {
+      const res = await api.put<{ mode: AssignmentMode }>('/admin/assignment-settings', { mode: next });
+      setMode(res.mode);
+    } finally {
+      setSavingMode(false);
+    }
+  }
+
+  // Solo se puede asignar a mensajeros activos (los suspendidos no aparecen)
+  const assignableCouriers = couriers.filter((c) => c.status === 'active');
 
   async function handleAssign(orderId: number, courierId: number) {
     if (!courierId) return;
@@ -84,9 +110,40 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="font-heading text-xl text-foreground font-semibold mb-6">
-        Dashboard
-      </h1>
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <h1 className="font-heading text-xl text-foreground font-semibold">Dashboard</h1>
+
+        {mode && (
+          <div className="flex items-center gap-3 bg-card border border-border rounded-lg px-3 py-2">
+            <div>
+              <p className="font-body text-xs text-foreground font-medium">
+                Asignación {mode === 'manual' ? 'manual' : 'automática'}
+              </p>
+              <p className="font-body text-[11px] text-muted-foreground">
+                {mode === 'manual'
+                  ? 'Tú asignas cada pedido.'
+                  : 'Se asigna al mensajero activo más cercano.'}
+              </p>
+            </div>
+            <button
+              onClick={handleToggleMode}
+              disabled={savingMode}
+              role="switch"
+              aria-checked={mode === 'automatic'}
+              aria-label="Activar asignación automática"
+              className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
+                mode === 'automatic' ? 'bg-primary' : 'bg-border'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                  mode === 'automatic' ? 'translate-x-5' : ''
+                }`}
+              />
+            </button>
+          </div>
+        )}
+      </div>
 
       {unassignedCount > 0 && (
         <div className="flex items-center gap-3 bg-status-enroute/10 border-2 border-status-enroute rounded-lg px-4 py-3 mb-4">
@@ -132,25 +189,50 @@ export default function DashboardPage() {
                   <p className="font-body text-muted-foreground text-sm p-4">Sin pedidos.</p>
                 ) : (
                   <div className="divide-y divide-border">
-                    {orders.map((order) => (
-                      <Link
-                        key={order.id}
-                        to={`/orders/${order.id}`}
-                        className={`flex items-center justify-between px-4 py-2.5 transition-colors ${
-                          order.status === 'pending'
-                            ? 'bg-status-enroute/10 border-l-4 border-status-enroute hover:bg-status-enroute/20'
-                            : 'hover:bg-background/50'
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <p className="font-mono text-xs text-foreground">#{order.id}</p>
-                          <p className="font-body text-xs text-muted-foreground truncate max-w-[140px]">
-                            {order.clinic.business_name}
-                          </p>
+                    {orders.map((order) => {
+                      const open = expandedId === order.id;
+
+                      return (
+                        <div
+                          key={order.id}
+                          className={
+                            order.status === 'pending'
+                              ? 'bg-status-enroute/10 border-l-4 border-status-enroute'
+                              : ''
+                          }
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setExpandedId(open ? null : order.id)}
+                            className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-background/50 transition-colors"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-mono text-xs text-foreground">#{order.id}</p>
+                              <p className="font-body text-xs text-muted-foreground truncate max-w-[140px]">
+                                {order.clinic.business_name}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <StatusBadge status={order.status} />
+                              <ChevronDown
+                                size={14}
+                                className={`text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+                              />
+                            </div>
+                          </button>
+                          {open && (
+                            <div className="px-4 pb-3">
+                              <OrderContactInfo order={order} />
+                              {order.courier && (
+                                <p className="font-body text-xs text-muted-foreground mt-2">
+                                  Mensajero: <span className="text-foreground">{order.courier.name}</span>
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <StatusBadge status={order.status} />
-                      </Link>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -245,12 +327,8 @@ export default function DashboardPage() {
                       </div>
                     )}
 
-                    <p className="font-body text-xs text-foreground truncate">
-                      <span className="text-muted-foreground">De:</span> {order.pickup.address}
-                    </p>
-                    <p className="font-body text-xs text-foreground truncate mb-2">
-                      <span className="text-muted-foreground">A:</span> {order.delivery.address}
-                    </p>
+                    <OrderContactInfo order={order} />
+                    <div className="mb-2" />
 
                     {!isPending && order.courier && (
                       <p className="font-body text-xs text-muted-foreground">
@@ -266,7 +344,7 @@ export default function DashboardPage() {
                         className="w-full bg-card text-foreground font-body text-xs px-2 py-2 rounded border-2 border-status-enroute focus:outline-none"
                       >
                         <option value="" disabled>Asignar a...</option>
-                        {couriers.map((c) => (
+                        {assignableCouriers.map((c) => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </select>

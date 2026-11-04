@@ -16,7 +16,8 @@ interface OrderResponse {
 
 const actionConfig: Partial<Record<OrderStatus, { label: string; endpoint: string; needsPhoto: boolean }>> = {
   assigned: { label: 'Iniciar recolección', endpoint: 'start-pickup', needsPhoto: false },
-  en_route_pickup: { label: 'Confirmar recolección', endpoint: 'confirm-pickup', needsPhoto: true },
+  en_route_pickup: { label: 'Llegué al punto de recolección', endpoint: 'arrive-pickup', needsPhoto: false },
+  arrived_pickup: { label: 'Confirmar recolección', endpoint: 'confirm-pickup', needsPhoto: true },
   picked_up: { label: 'Iniciar entrega', endpoint: 'start-delivery', needsPhoto: false },
   en_route_delivery: { label: 'Confirmar entrega', endpoint: 'confirm-delivery', needsPhoto: true },
 };
@@ -63,11 +64,34 @@ export default function OrderDetailPage() {
 
   const action = order ? actionConfig[order.status] : undefined;
   const canReportProblem = order?.status === 'picked_up' || order?.status === 'en_route_delivery';
+  // Confirmaciones pendientes de la fase actual: principal + paradas adicionales
+  const phase: 'pickup' | 'delivery' | null =
+    order?.status === 'arrived_pickup' ? 'pickup' : order?.status === 'en_route_delivery' ? 'delivery' : null;
+  const mainDone = !!order?.evidences?.some((e) => e.type === phase && !e.stop_id);
+  const confirmTargets = phase && order
+    ? [
+        ...(mainDone ? [] : [{
+          key: 'main',
+          stopId: null as number | null,
+          label: phase === 'pickup' ? 'Recolección principal' : 'Entrega principal',
+          address: phase === 'pickup' ? order.pickup.address : order.delivery.address,
+        }]),
+        ...(order.stops ?? [])
+          .filter((s) => s.type === phase && !s.completed_at)
+          .map((s) => ({
+            key: String(s.id),
+            stopId: s.id as number | null,
+            label: `Parada ${phase === 'pickup' ? 'de recolección' : 'de entrega'} ${s.sequence}`,
+            address: s.address,
+          })),
+      ]
+    : [];
   const deadline = order?.urgent_deadline_at ? new Date(order.urgent_deadline_at) : null;
   const deadlinePassed = deadline ? deadline.getTime() < Date.now() : false;
 
-  async function handleAction() {
+  async function handleAction(endpointOverride?: string, stopId?: number | null) {
     if (!order || !action || offDuty) return;
+    const endpoint = endpointOverride ?? action.endpoint;
 
     if (action.needsPhoto && !photo) {
       setError('Debes tomar una foto de evidencia.');
@@ -81,14 +105,15 @@ export default function OrderDetailPage() {
       if (action.needsPhoto && photo) {
         const formData = new FormData();
         formData.append('photo', photo);
-        await api.post(`/mensajero/orders/${order.id}/${action.endpoint}`, formData);
+        if (stopId) formData.append('stop_id', String(stopId));
+        await api.post(`/mensajero/orders/${order.id}/${endpoint}`, formData);
       } else {
-        await api.post(`/mensajero/orders/${order.id}/${action.endpoint}`);
+        await api.post(`/mensajero/orders/${order.id}/${endpoint}`);
       }
       setPhoto(null);
       loadOrder();
-    } catch {
-      setError('No se pudo completar la acción.');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo completar la acción.');
     } finally {
       setSubmitting(false);
     }
@@ -206,23 +231,37 @@ export default function OrderDetailPage() {
 
             {action.needsPhoto && (
               <div className={offDuty ? 'pointer-events-none opacity-50' : ''}>
-                <PhotoCapture onCapture={setPhoto} />
+                <PhotoCapture key={order.evidences?.length ?? 0} onCapture={setPhoto} />
               </div>
             )}
 
             {error && <p className="font-body text-sm text-status-cancelled">{error}</p>}
 
-            <button
-              onClick={handleAction}
-              disabled={submitting || offDuty}
-              className={`w-full font-body font-medium px-4 py-3 rounded-lg transition-opacity ${
-                offDuty
-                  ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                  : 'bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground glow-fill'
-              }`}
-            >
-              {submitting ? 'Procesando...' : action.label}
-            </button>
+            {action.needsPhoto && confirmTargets.length > 1 && (
+              <p className="font-body text-xs text-muted-foreground">
+                Este pedido tiene {confirmTargets.length} {phase === 'pickup' ? 'recolecciones' : 'entregas'} pendientes.
+                Toma una foto y confirma cada una.
+              </p>
+            )}
+
+            {(action.needsPhoto ? confirmTargets : [{ key: 'single', stopId: null, label: '', address: '' }]).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => handleAction(undefined, t.stopId)}
+                disabled={submitting || offDuty}
+                className={`w-full font-body font-medium px-4 py-3 rounded-lg transition-opacity ${
+                  offDuty
+                    ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                    : 'bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground glow-fill'
+                }`}
+              >
+                {submitting
+                  ? 'Procesando...'
+                  : action.needsPhoto && confirmTargets.length > 1
+                    ? `Confirmar: ${t.label}`
+                    : action.label}
+              </button>
+            ))}
 
             {/* No se pudo entregar */}
             {canReportProblem && !showProblem && (
@@ -339,6 +378,34 @@ export default function OrderDetailPage() {
               label={`Entrega — Pedido #${order.id}`}
             />
           </div>
+          {(order.stops ?? []).length > 0 && (
+            <div>
+              <p className="font-body text-xs text-muted-foreground mb-2">Paradas adicionales</p>
+              <div className="space-y-3">
+                {(order.stops ?? []).map((s) => (
+                  <div key={s.id} className="border border-border rounded-lg p-3">
+                    <p className="font-body text-xs text-primary font-semibold mb-1">
+                      {s.type === 'pickup' ? 'Recolección' : 'Entrega'} extra {s.sequence}
+                      {s.completed_at ? ' · ✔ completada' : ''}
+                    </p>
+                    <p className="font-body text-sm text-foreground">{s.address}</p>
+                    <p className="font-body text-xs text-muted-foreground">
+                      Contacto: {s.contact_name} {s.contact_phone}
+                    </p>
+                    <AddressActions
+                      address={s.address}
+                      lat={s.lat}
+                      lng={s.lng}
+                      label={`Parada ${s.sequence} — Pedido #${order.id}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {order.requires_invoice && (
+            <p className="font-body text-xs text-status-enroute font-medium">Esta clínica requiere factura.</p>
+          )}
           {order.notes && (
             <div>
               <p className="font-body text-xs text-muted-foreground mb-1">Notas</p>

@@ -1,11 +1,13 @@
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { auth } from '../lib/auth';
 import Avatar from './Avatar';
+import { useLocationReporting } from '../hooks/useLocationReporting';
 import { ClipboardList, Clock, LogOut, User as UserIcon } from 'lucide-react';
 
 export default function Layout() {
   const navigate = useNavigate();
   const user = auth.getUser();
+  useLocationReporting();
 
   async function handleLogout() {
     await auth.logout();

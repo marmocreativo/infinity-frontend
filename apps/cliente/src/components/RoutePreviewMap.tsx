@@ -23,6 +23,7 @@ interface RoutePreviewMapProps {
   pickup: Point;
   delivery: Point;
   route: [number, number][];
+  stops?: { lat: number; lng: number; label: string }[];
 }
 
 function FitRoute({ points }: { points: [number, number][] }) {
@@ -36,7 +37,7 @@ function FitRoute({ points }: { points: [number, number][] }) {
   return null;
 }
 
-export default function RoutePreviewMap({ pickup, delivery, route }: RoutePreviewMapProps) {
+export default function RoutePreviewMap({ pickup, delivery, route, stops = [] }: RoutePreviewMapProps) {
   const pickupPos: [number, number] = [pickup.lat, pickup.lng];
   const deliveryPos: [number, number] = [delivery.lat, delivery.lng];
 
@@ -60,6 +61,11 @@ export default function RoutePreviewMap({ pickup, delivery, route }: RoutePrevie
         <Marker position={deliveryPos} icon={icon}>
           <Tooltip permanent direction="top" offset={[0, -36]}>Entrega</Tooltip>
         </Marker>
+        {stops.map((s, i) => (
+          <Marker key={i} position={[s.lat, s.lng]} icon={icon}>
+            <Tooltip permanent direction="top" offset={[0, -36]}>{s.label}</Tooltip>
+          </Marker>
+        ))}
         <FitRoute points={points} />
       </MapContainer>
     </div>

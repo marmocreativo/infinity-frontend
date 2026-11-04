@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import type { Shift } from '../types';
 import { Power } from 'lucide-react';
+import { SHIFT_CHANGED_EVENT } from '../hooks/useLocationReporting';
 
 interface ShiftCurrentResponse {
   on_duty: boolean;
@@ -62,6 +63,7 @@ export default function ShiftPage() {
         await api.post('/mensajero/shifts/start');
       }
       loadStatus();
+      window.dispatchEvent(new Event(SHIFT_CHANGED_EVENT));
     } catch {
       setError('No se pudo actualizar tu estado de turno.');
     } finally {

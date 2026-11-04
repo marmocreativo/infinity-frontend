@@ -2,6 +2,7 @@ export type OrderStatus =
   | 'pending'
   | 'assigned'
   | 'en_route_pickup'
+  | 'arrived_pickup'
   | 'picked_up'
   | 'en_route_delivery'
   | 'delivered'
@@ -15,6 +16,9 @@ export interface Order {
   clinic: {
     id: number;
     business_name: string;
+    contact_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
   };
   courier?: {
     id: number;
@@ -50,8 +54,11 @@ export interface Order {
   can_cancel?: boolean;
   cancel_fee_preview?: number | null;
   notes: string | null;
+  requires_invoice?: boolean;
+  stops?: OrderStop[];
   evidences?: Array<{
     type: 'pickup' | 'delivery' | 'return';
+    stop_id?: number | null;
     photo_url: string;
     taken_at: string;
   }>;
@@ -85,4 +92,16 @@ export interface Shift {
   courier_id: number;
   started_at: string;
   ended_at: string | null;
+}
+
+export interface OrderStop {
+  id: number;
+  type: 'pickup' | 'delivery';
+  sequence: number;
+  address: string;
+  lat: string;
+  lng: string;
+  contact_name: string;
+  contact_phone: string;
+  completed_at: string | null;
 }
