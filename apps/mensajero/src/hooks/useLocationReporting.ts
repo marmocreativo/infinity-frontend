@@ -12,15 +12,41 @@ const SEND_EVERY_MS = 15000;
  */
 export function useLocationReporting() {
   useEffect(() => {
+    // En modo "Ver como" no se reporta la ubicación del administrador
+    if (localStorage.getItem('impersonating')) return;
+
     let watchId: number | null = null;
+    let pollId: ReturnType<typeof setInterval> | null = null;
+    let wakeLock: WakeLockSentinel | null = null;
     let lastSent = 0;
     let cancelled = false;
+
+    // Mantiene la pantalla encendida mientras está en turno: los navegadores pausan el GPS
+    // de una app en segundo plano o con la pantalla apagada
+    async function keepAwake() {
+      try {
+        if ('wakeLock' in navigator && !wakeLock && document.visibilityState === 'visible') {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release', () => {
+            wakeLock = null;
+          });
+        }
+      } catch {
+        // Sin soporte o sin permiso: se sigue sin bloqueo de pantalla
+      }
+    }
 
     function stop() {
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
       }
+      if (pollId !== null) {
+        clearInterval(pollId);
+        pollId = null;
+      }
+      wakeLock?.release().catch(() => {});
+      wakeLock = null;
     }
 
     function send(pos: GeolocationPosition) {
@@ -42,10 +68,24 @@ export function useLocationReporting() {
 
     function start() {
       if (watchId !== null || !navigator.geolocation) return;
+
       watchId = navigator.geolocation.watchPosition(send, () => {}, {
         enableHighAccuracy: true,
         maximumAge: 5000,
       });
+
+      // watchPosition solo avisa cuando la posición cambia; si el mensajero está quieto
+      // el mapa dejaría de recibir señales. Este sondeo confirma la posición cada 15 s.
+      pollId = setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        navigator.geolocation.getCurrentPosition(send, () => {}, {
+          enableHighAccuracy: true,
+          maximumAge: 10000,
+          timeout: 10000,
+        });
+      }, SEND_EVERY_MS);
+
+      keepAwake();
     }
 
     function sync() {
@@ -63,7 +103,13 @@ export function useLocationReporting() {
 
     sync();
     const interval = setInterval(sync, 60000);
-    const onVisible = () => document.visibilityState === 'visible' && sync();
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      // Al volver a la app: reporta de inmediato y recupera el bloqueo de pantalla
+      lastSent = 0;
+      sync();
+      if (watchId !== null) keepAwake();
+    };
 
     window.addEventListener(SHIFT_CHANGED_EVENT, sync);
     document.addEventListener('visibilitychange', onVisible);

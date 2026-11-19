@@ -1,6 +1,7 @@
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { auth } from '../lib/auth';
 import Avatar from './Avatar';
+import ImpersonationBanner from './ImpersonationBanner';
 import { useLocationReporting } from '../hooks/useLocationReporting';
 import { ClipboardList, Clock, LogOut, User as UserIcon } from 'lucide-react';
 
@@ -21,6 +22,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <ImpersonationBanner />
       <header className="border-b border-border px-4 py-3 flex items-center justify-between">
         <img src="/logo.png" alt="Infinity App" className="h-7" />
         <div className="flex items-center gap-3">

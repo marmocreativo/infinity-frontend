@@ -41,6 +41,10 @@ export interface Order {
   };
   price: string;
   payment_status: 'pending' | 'paid' | 'failed';
+  payment_method?: 'card' | 'oxxo' | 'cash' | 'credit' | null;
+  payment_reference?: string | null;
+  sample_type?: string | null;
+  awaiting_payment?: boolean;
   distance_km?: string;
   is_urgent?: boolean;
   urgent_surcharge?: string;
@@ -56,6 +60,7 @@ export interface Order {
   cancel_fee_preview?: number | null;
   notes: string | null;
   requires_invoice?: boolean;
+  scheduled_for?: string | null;
   stops?: OrderStop[];
   evidences?: Array<{
     type: 'pickup' | 'delivery' | 'return';

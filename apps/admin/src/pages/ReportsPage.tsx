@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { Order } from '../types';
 import Avatar from '../components/Avatar';
@@ -108,7 +109,9 @@ export default function ReportsPage() {
                     <tbody>
                       {deliveredOrders.map((order) => (
                         <tr key={order.id} className="border-b border-border/50 last:border-0">
-                          <td className="font-mono text-sm text-foreground px-4 py-3">#{order.id}</td>
+                          <td className="font-mono text-sm text-foreground px-4 py-3">
+                            <Link to={`/orders/${order.id}`} className="text-primary hover:underline">#{order.id}</Link>
+                          </td>
                           <td className="font-body text-sm text-foreground px-4 py-3">{order.clinic.business_name}</td>
                           <td className="font-body text-sm text-foreground px-4 py-3">{order.courier?.name ?? '—'}</td>
                           <td className="font-body text-sm text-foreground px-4 py-3">{order.requires_invoice ? 'Sí' : 'No'}</td>

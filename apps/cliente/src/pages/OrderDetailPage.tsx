@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
+import PaymentPanel from '../components/PaymentPanel';
 import type { Order } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import OrderTimeline from '../components/OrderTimeline';
@@ -39,7 +40,6 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [paying, setPaying] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -51,18 +51,10 @@ export default function OrderDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  async function handlePay() {
-    setPaying(true);
-    setActionError(null);
-    try {
-      await api.post(`/cliente/orders/${id}/pay`);
-      const res = await api.get<OrderResponse>(`/cliente/orders/${id}`);
-      setOrder(res.data);
-    } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : 'No se pudo procesar el pago.');
-    } finally {
-      setPaying(false);
-    }
+  function reloadOrder() {
+    api.get<OrderResponse>(`/cliente/orders/${id}`)
+      .then((res) => setOrder(res.data))
+      .catch(() => setActionError('No se pudo actualizar el pedido.'));
   }
 
   async function handleCancel() {
@@ -139,6 +131,17 @@ export default function OrderDetailPage() {
           )}
         </div>
 
+        {order.scheduled_for && order.status === 'pending' && (
+          <div className="bg-status-enroute/10 border border-status-enroute/50 rounded-lg p-4 mb-4">
+            <p className="font-body text-sm text-foreground font-medium">
+              Programado para {new Date(`${order.scheduled_for}T12:00:00`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+            <p className="font-body text-xs text-muted-foreground">
+              Lo recibimos después de la hora límite; se asignará a primera hora de ese día.
+            </p>
+          </div>
+        )}
+
         {/* Retorno a remitente */}
         {order.status === 'returned' && (
           <div className="bg-status-cancelled/10 border border-status-cancelled/40 rounded-lg p-4 mb-4">
@@ -212,6 +215,12 @@ export default function OrderDetailPage() {
           {order.requires_invoice && (
             <p className="font-body text-xs text-primary font-medium">Factura solicitada</p>
           )}
+          {order.sample_type && (
+            <div>
+              <p className="font-body text-xs text-muted-foreground mb-1">Tipo de muestra</p>
+              <p className="font-body text-sm text-foreground">{order.sample_type}</p>
+            </div>
+          )}
           {order.notes && (
             <div>
               <p className="font-body text-xs text-muted-foreground mb-1">Notas</p>
@@ -236,18 +245,31 @@ export default function OrderDetailPage() {
               </p>
             </div>
 
-            {price === 0 ? null : amountDue > 0 ? (
-              <button
-                onClick={handlePay}
-                disabled={paying}
-                className="bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground font-body text-sm font-medium px-4 py-2 rounded-lg transition-opacity glow-fill"
-              >
-                {paying ? 'Procesando...' : 'Pagar ahora'}
-              </button>
+            {price === 0 ? null : order.payment_method === 'credit' ? (
+              <span className="font-body text-sm font-medium text-primary">Crédito Infinity</span>
+            ) : amountDue > 0 ? (
+              <span className="font-body text-sm font-medium text-status-enroute">Pendiente</span>
             ) : (
               <span className="text-status-delivered font-body text-sm font-medium">Pagado ✓</span>
             )}
           </div>
+
+          {order.awaiting_payment && (
+            <p className="font-body text-xs text-status-enroute border-t border-border pt-3">
+              Tu pedido se asignará a un mensajero en cuanto confirmemos tu pago en OXXO.
+            </p>
+          )}
+
+          {order.payment_method === 'credit' && price > 0 && (
+            <p className="font-body text-xs text-muted-foreground border-t border-border pt-3">
+              Este pedido se suma a tu estado de cuenta del mes y se cubre a fin de mes.{' '}
+              <Link to="/billing" className="text-primary hover:underline">Ver facturación</Link>
+            </p>
+          )}
+
+          {price > 0 && amountDue > 0 && order.payment_method !== 'credit' && order.status !== 'cancelled' && (
+            <PaymentPanel order={order} amountDue={amountDue} onChanged={reloadOrder} />
+          )}
 
           {(order.is_urgent || num(order.cancellation_fee) > 0 || num(order.return_surcharge) > 0 || refunded > 0) && (
             <div className="border-t border-border pt-3 space-y-1">

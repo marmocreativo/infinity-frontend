@@ -20,6 +20,7 @@ export const auth = {
     } finally {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
+      localStorage.removeItem('impersonating');
     }
   },
 

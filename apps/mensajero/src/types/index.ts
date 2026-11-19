@@ -39,6 +39,7 @@ export interface Order {
     contact_phone: string | null;
   };
   price: string;
+  sample_type?: string | null;
   payment_status: 'pending' | 'paid' | 'failed';
   distance_km?: string;
   is_urgent?: boolean;
@@ -55,6 +56,7 @@ export interface Order {
   cancel_fee_preview?: number | null;
   notes: string | null;
   requires_invoice?: boolean;
+  scheduled_for?: string | null;
   stops?: OrderStop[];
   evidences?: Array<{
     type: 'pickup' | 'delivery' | 'return';

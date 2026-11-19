@@ -14,6 +14,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export async function setupPushNotifications() {
+  // En modo "Ver como" no se registra este navegador como dispositivo del usuario
+  if (localStorage.getItem('impersonating')) return;
+
   const supported = await isSupported();
   if (!supported) {
     console.warn('Push notifications no soportadas en este navegador.');

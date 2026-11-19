@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { auth } from '../lib/auth';
 import BottomNav from './BottomNav';
+import ImpersonationBanner from './ImpersonationBanner';
 import { LogOut } from 'lucide-react';
 
 export default function Layout() {
@@ -13,6 +14,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <ImpersonationBanner />
       <header className="border-b border-border px-4 py-3 flex items-center justify-between">
         <img src="/logo.png" alt="Infinity App" className="h-7" />
         <button

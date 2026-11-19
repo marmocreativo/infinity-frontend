@@ -1,5 +1,9 @@
+import UpdatePrompt from './components/UpdatePrompt';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
+import ImpersonatePage from './pages/ImpersonatePage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
@@ -10,8 +14,13 @@ import Layout from './components/Layout';
 
 function App() {
   return (
-    <Routes>
+    <>
+      <UpdatePrompt />
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/impersonate" element={<ImpersonatePage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route path="/change-password" element={<ChangePasswordPage />} />
@@ -25,7 +34,8 @@ function App() {
       </Route>
 
       <Route path="/" element={<Navigate to="/orders" replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 

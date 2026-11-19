@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import MapPicker from './MapPicker';
-import { geocodeAddress } from '../lib/geocode';
+import AddressSearch from './AddressSearch';
 
 export interface StopForm {
   /** Id local solo para las keys de React */
@@ -27,32 +26,6 @@ const labelClass = 'block font-body text-sm text-foreground mb-1';
 
 /** Parada adicional de recolección o entrega (dirección + mapa + contacto obligatorio) */
 export default function StopFields({ stop, index, onChange, onRemove }: StopFieldsProps) {
-  const [geocoding, setGeocoding] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const firstRender = useRef(true);
-
-  // Geocodifica la dirección mientras el usuario escribe
-  useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (stop.address.trim().length < 6) return;
-
-    debounceRef.current = setTimeout(async () => {
-      setGeocoding(true);
-      const result = await geocodeAddress(stop.address);
-      setGeocoding(false);
-      if (result) onChange({ lat: result.lat, lng: result.lng });
-    }, 900);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stop.address]);
-
   const title = stop.type === 'pickup' ? 'Recolección adicional' : 'Entrega adicional';
 
   return (
@@ -73,20 +46,13 @@ export default function StopFields({ stop, index, onChange, onRemove }: StopFiel
 
       <div>
         <label className={labelClass}>Dirección</label>
-        <div className="relative">
-          <input
-            className={inputClass}
-            value={stop.address}
-            onChange={(e) => onChange({ address: e.target.value })}
-            required
-            placeholder="Calle, número, colonia — el mapa se ajustará solo"
-          />
-          {geocoding && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs text-muted-foreground">
-              Buscando...
-            </span>
-          )}
-        </div>
+        <AddressSearch
+          value={stop.address}
+          onValueChange={(address) => onChange({ address })}
+          onResolve={(r) => onChange({ lat: r.lat, lng: r.lng })}
+          required
+          placeholder="Calle, número, colonia — el mapa se ajustará"
+        />
       </div>
 
       <MapPicker

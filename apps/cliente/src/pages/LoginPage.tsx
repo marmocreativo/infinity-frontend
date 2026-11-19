@@ -13,8 +13,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-sm flex flex-col items-center">
+    <div
+      className="relative min-h-screen bg-background bg-cover bg-center flex items-center justify-center p-4"
+      style={{ backgroundImage: "url('/hero.jpg')" }}
+    >
+      <div className="absolute inset-0 bg-black/25" />
+      <div className="relative w-full max-w-sm flex flex-col items-center bg-background/45 backdrop-blur-[3px] border border-white/15 rounded-2xl shadow-2xl p-8">
         <img src="/logo.png" alt="Infinity App" className="w-48 mb-6" />
 
         <p className="font-body text-muted-foreground text-sm mb-8 text-center">
@@ -48,6 +52,12 @@ export default function LoginPage() {
               className="w-full bg-card text-foreground font-body px-3 py-2 rounded-lg border border-border focus:border-primary focus:outline-none"
               placeholder="••••••••"
             />
+          </div>
+
+          <div className="text-right -mt-2">
+            <Link to="/forgot-password" className="font-body text-xs text-muted-foreground hover:text-primary">
+              ¿Olvidaste tu contraseña?
+            </Link>
           </div>
 
           {error && (

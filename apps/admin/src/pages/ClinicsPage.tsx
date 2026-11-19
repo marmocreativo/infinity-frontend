@@ -3,7 +3,9 @@ import { api } from '../lib/api';
 import { errorMessage } from '../lib/errors';
 import { geocodeMexico } from '../lib/geocode';
 import Avatar from '../components/Avatar';
-import { Mail, Phone, MapPin, FileText, Pencil } from 'lucide-react';
+import ImpersonateButton from '../components/ImpersonateButton';
+import { Link } from 'react-router-dom';
+import { Mail, Phone, MapPin, FileText, Pencil, BarChart3 } from 'lucide-react';
 
 interface Clinic {
   id: number;
@@ -237,9 +239,9 @@ export default function ClinicsPage() {
                     <div className="flex items-center gap-3 min-w-0">
                       <Avatar name={clinic.business_name} />
                       <div className="min-w-0">
-                        <p className="font-body text-sm text-foreground font-medium truncate">
+                        <Link to={`/clinics/${clinic.id}`} className="font-body text-sm text-foreground font-medium truncate block hover:text-primary hover:underline">
                           {clinic.business_name}
-                        </p>
+                        </Link>
                         <p className="font-body text-xs text-muted-foreground truncate">
                           {clinic.user.name}
                         </p>
@@ -283,6 +285,14 @@ export default function ClinicsPage() {
                   </div>
 
                   <div className="flex items-center justify-end gap-4 pt-3 border-t border-border">
+                    <Link
+                      to={`/clinics/${clinic.id}`}
+                      className="flex items-center gap-1 font-body text-xs text-primary hover:opacity-80"
+                    >
+                      <BarChart3 size={12} />
+                      Detalle
+                    </Link>
+                    <ImpersonateButton userId={clinic.user.id} disabled={clinic.user.status !== 'active'} />
                     <button
                       onClick={() => setEditingId(clinic.id)}
                       className="flex items-center gap-1 font-body text-xs text-primary hover:opacity-80"

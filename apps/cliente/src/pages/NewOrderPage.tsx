@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { LocateFixed, Plus, Zap } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { auth } from '../lib/auth';
-import { geocodeAddress, reverseGeocode } from '../lib/geocode';
+import { reverseGeocode } from '../lib/geocode';
+import AddressSearch from '../components/AddressSearch';
 import { isInMexico } from '../lib/mexico';
 import MapPicker from '../components/MapPicker';
 import RoutePreviewMap from '../components/RoutePreviewMap';
 import StopFields, { type StopForm } from '../components/StopFields';
+import PaymentMethodPicker, { type PaymentMethod } from '../components/PaymentMethodPicker';
+import CardFields, { emptyCard, validateCard, type CardValues } from '../components/CardFields';
 import type { Order } from '../types';
 
 const TOTAL_STEPS = 3;
@@ -17,7 +20,6 @@ const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN
 
 interface RouteQuote {
   distance_km: number;
-  duration_min: number;
   route_price: number;
   urgent_surcharge: number;
   route: [number, number][];
@@ -26,8 +28,11 @@ interface RouteQuote {
 
 interface ServiceStatus {
   can_order: boolean;
-  reason: 'after_cutoff' | 'no_couriers' | null;
+  reason: 'after_cutoff' | 'no_couriers' | 'debt' | 'red_zone' | null;
+  credit_enabled?: boolean;
+  credit_debt?: number;
   message: string | null;
+  scheduled_for: string | null;
   couriers_on_duty: number;
   per_km: number;
   urgent_surcharge: number;
@@ -60,10 +65,14 @@ export default function NewOrderPage() {
   const [deliveryCoords, setDeliveryCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [deliveryContactName, setDeliveryContactName] = useState('');
   const [deliveryContactPhone, setDeliveryContactPhone] = useState('');
-  const [geocoding, setGeocoding] = useState(false);
 
   const [notes, setNotes] = useState('');
+  const [sampleChoice, setSampleChoice] = useState('');
+  const [sampleOther, setSampleOther] = useState('');
+  const [checking, setChecking] = useState(false);
   const [isUrgent, setIsUrgent] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
+  const [card, setCard] = useState<CardValues>(emptyCard);
   const [requiresInvoice, setRequiresInvoice] = useState(false);
 
   // Paradas adicionales de recolección / entrega
@@ -105,7 +114,6 @@ export default function NewOrderPage() {
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Horario, repartidores en turno y tarifas vigentes
   useEffect(() => {
@@ -162,25 +170,6 @@ export default function NewOrderPage() {
     );
   }
 
-  // Geocodifica la dirección de entrega mientras el usuario escribe (con debounce)
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (deliveryAddress.trim().length < 6) return;
-
-    debounceRef.current = setTimeout(async () => {
-      setGeocoding(true);
-      const result = await geocodeAddress(deliveryAddress);
-      setGeocoding(false);
-      if (result) {
-        setDeliveryCoords({ lat: result.lat, lng: result.lng });
-      }
-    }, 900);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [deliveryAddress]);
 
   // Al llegar a la confirmación, calcula ruta y kilómetros
   useEffect(() => {
@@ -201,8 +190,14 @@ export default function NewOrderPage() {
       .then((res) => {
         if (!cancelled) setQuote(res.data);
       })
-      .catch(() => {
-        if (!cancelled) setQuoteError('No se pudo calcular la ruta y el precio. Intenta de nuevo.');
+      .catch((err) => {
+        if (!cancelled) {
+          setQuoteError(
+            err instanceof ApiError && err.status === 422
+              ? err.message
+              : 'No se pudo calcular la ruta y el precio. Intenta de nuevo.'
+          );
+        }
       })
       .finally(() => {
         if (!cancelled) setQuoting(false);
@@ -270,6 +265,14 @@ export default function NewOrderPage() {
         return false;
       }
       if (!validateStops('delivery')) return false;
+      if (!sampleChoice) {
+        setError('Indica qué envías (tipo de muestra).');
+        return false;
+      }
+      if (sampleChoice === 'Otro' && !sampleOther.trim()) {
+        setError('Escribe qué es lo que envías.');
+        return false;
+      }
     }
     if (pickupCoords && !isInMexico(pickupCoords.lat, pickupCoords.lng)) {
       setError('La ubicación de recolección debe estar dentro de México.');
@@ -282,8 +285,29 @@ export default function NewOrderPage() {
     return true;
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (!validateStep()) return;
+
+    // Al salir del paso 1 se revisa que la recolección no esté en una zona roja
+    if (step === 1 && pickupCoords) {
+      setChecking(true);
+      try {
+        await api.post('/cliente/orders/check-pickup', {
+          pickup_lat: pickupCoords.lat,
+          pickup_lng: pickupCoords.lng,
+          stops: stops.map((s) => ({ type: s.type, lat: s.lat, lng: s.lng })),
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 422) {
+          setError(err.message);
+          setChecking(false);
+          return;
+        }
+        // Si falla la red, el servidor lo vuelve a validar al crear el pedido
+      }
+      setChecking(false);
+    }
+
     setStep((s) => Math.min(s + 1, TOTAL_STEPS));
   }
 
@@ -303,6 +327,15 @@ export default function NewOrderPage() {
 
     if (!validateStep() || !pickupCoords || !deliveryCoords) return;
 
+    // Con tarjeta, el cobro se hace al confirmar: los datos deben estar completos
+    if (paymentMethod === 'card') {
+      const invalid = validateCard(card);
+      if (invalid) {
+        setError(invalid);
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
 
@@ -318,9 +351,11 @@ export default function NewOrderPage() {
         delivery_lng: deliveryCoords.lng,
         delivery_contact_name: deliveryContactName.trim(),
         delivery_contact_phone: deliveryContactPhone.trim(),
+        sample_type: sampleChoice === 'Otro' ? sampleOther.trim() : sampleChoice,
         notes: notes || null,
         is_urgent: isUrgent,
         requires_invoice: requiresInvoice,
+        payment_method: paymentMethod,
         stops: stopsPayload,
       });
 
@@ -346,6 +381,20 @@ export default function NewOrderPage() {
         <div className="bg-status-cancelled/10 border border-status-cancelled/40 rounded-lg p-4 mb-4">
           <p className="font-body text-sm text-foreground font-medium mb-1">
             No es posible crear pedidos por ahora
+          </p>
+          <p className="font-body text-sm text-muted-foreground">{serviceStatus.message}</p>
+          {serviceStatus.reason === 'debt' && (
+            <Link to="/billing" className="inline-block mt-2 font-body text-sm text-primary hover:underline">
+              Ver mi facturación →
+            </Link>
+          )}
+        </div>
+      )}
+
+      {serviceStatus?.can_order && serviceStatus.reason === 'after_cutoff' && serviceStatus.message && (
+        <div className="bg-status-enroute/10 border border-status-enroute/50 rounded-lg p-4 mb-4">
+          <p className="font-body text-sm text-foreground font-medium mb-1">
+            Tu pedido se programará para mañana
           </p>
           <p className="font-body text-sm text-muted-foreground">{serviceStatus.message}</p>
         </div>
@@ -396,20 +445,16 @@ export default function NewOrderPage() {
 
             <div>
               <label className={labelClass}>Dirección</label>
-              <div className="relative">
-                <input
-                  className={inputClass}
-                  value={pickupAddress}
-                  onChange={(e) => setPickupAddress(e.target.value)}
-                  required
-                  placeholder="Calle, número, colonia"
-                />
-                {resolvingPickup && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs text-muted-foreground">
-                    Buscando...
-                  </span>
-                )}
-              </div>
+              <AddressSearch
+                value={pickupAddress}
+                onValueChange={setPickupAddress}
+                onResolve={(r) => setPickupCoords({ lat: r.lat, lng: r.lng })}
+                required
+                placeholder="Escribe calle, número y colonia — o marca el punto en el mapa"
+              />
+              {resolvingPickup && (
+                <p className="font-body text-xs text-muted-foreground mt-1">Obteniendo la dirección del punto...</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -463,20 +508,13 @@ export default function NewOrderPage() {
 
               <div>
                 <label className={labelClass}>Dirección</label>
-                <div className="relative">
-                  <input
-                    className={inputClass}
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    required
-                    placeholder="Escribe la dirección — el mapa se ajustará automáticamente"
-                  />
-                  {geocoding && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs text-muted-foreground">
-                      Buscando...
-                    </span>
-                  )}
-                </div>
+                <AddressSearch
+                  value={deliveryAddress}
+                  onValueChange={setDeliveryAddress}
+                  onResolve={(r) => setDeliveryCoords({ lat: r.lat, lng: r.lng })}
+                  required
+                  placeholder="Escribe calle, número y colonia — el mapa se ajustará"
+                />
                 <p className="font-body text-xs text-muted-foreground mt-1">
                   Puedes ajustar el punto exacto haciendo click en el mapa.
                 </p>
@@ -535,6 +573,30 @@ export default function NewOrderPage() {
               </button>
             </section>
 
+            <div className="space-y-2">
+              <label className={labelClass}>¿Qué envías?</label>
+              <select
+                className={inputClass}
+                value={sampleChoice}
+                onChange={(e) => setSampleChoice(e.target.value)}
+              >
+                <option value="" disabled>Selecciona el tipo de muestra</option>
+                <option value="Laminillas">Laminillas</option>
+                <option value="Líquido">Líquido</option>
+                <option value="Sobre">Sobre</option>
+                <option value="Otro">Otro</option>
+              </select>
+              {sampleChoice === 'Otro' && (
+                <input
+                  className={inputClass}
+                  value={sampleOther}
+                  onChange={(e) => setSampleOther(e.target.value)}
+                  placeholder="Describe lo que envías"
+                  maxLength={120}
+                />
+              )}
+            </div>
+
             <div>
               <label className={labelClass}>Notas (opcional)</label>
               <textarea
@@ -580,17 +642,9 @@ export default function NewOrderPage() {
 
               {quote && (
                 <>
-                  <div className="grid grid-cols-2 gap-3 text-center">
-                    <div>
-                      <p className="font-body text-xs text-muted-foreground">Distancia</p>
-                      <p className="font-mono text-base text-foreground">{quote.distance_km.toFixed(1)} km</p>
-                    </div>
-                    <div>
-                      <p className="font-body text-xs text-muted-foreground">Tiempo aprox.</p>
-                      <p className="font-mono text-base text-foreground">
-                        {Math.max(1, Math.round(quote.duration_min))} min
-                      </p>
-                    </div>
+                  <div className="text-center">
+                    <p className="font-body text-xs text-muted-foreground">Distancia</p>
+                    <p className="font-mono text-base text-foreground">{quote.distance_km.toFixed(1)} km</p>
                   </div>
 
                   {quote.estimated && (
@@ -672,6 +726,30 @@ export default function NewOrderPage() {
               </section>
             )}
 
+            {/* Método de pago */}
+            <section className="space-y-2">
+              <h2 className="font-body text-sm font-semibold text-foreground">Método de pago</h2>
+              <PaymentMethodPicker
+                value={paymentMethod}
+                onChange={setPaymentMethod}
+                creditEnabled={Boolean(serviceStatus?.credit_enabled)}
+              />
+              {paymentMethod === 'card' && (
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <CardFields value={card} onChange={setCard} />
+                  <p className="font-body text-xs text-muted-foreground mt-3">
+                    El cargo se hace al confirmar el pedido.
+                  </p>
+                </div>
+              )}
+              <p className="font-body text-xs text-muted-foreground">
+                {paymentMethod === 'oxxo' &&
+                  'Al confirmar generaremos tu ficha de pago. El pedido se asignará cuando se confirme tu pago en OXXO.'}
+                {paymentMethod === 'cash' && 'Pagas en efectivo al mensajero cuando entregue.'}
+                {paymentMethod === 'credit' && 'No se cobra ahora: se suma a tu estado de cuenta y lo cubres a fin de mes.'}
+              </p>
+            </section>
+
             {/* Resumen de direcciones */}
             <section className="bg-card border border-border rounded-lg p-4 space-y-3">
               <div>
@@ -703,6 +781,12 @@ export default function NewOrderPage() {
                   </p>
                 </div>
               ))}
+              <div>
+                <p className="font-body text-xs text-muted-foreground mb-1">Tipo de muestra</p>
+                <p className="font-body text-sm text-foreground">
+                  {sampleChoice === 'Otro' ? sampleOther : sampleChoice}
+                </p>
+              </div>
               {notes && (
                 <div>
                   <p className="font-body text-xs text-muted-foreground mb-1">Notas</p>
@@ -744,7 +828,7 @@ export default function NewOrderPage() {
             <button
               type="button"
               onClick={handleNext}
-              disabled={blocked}
+              disabled={blocked || checking}
               className="flex-1 bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground font-body font-medium px-4 py-2 rounded-lg transition-opacity glow-fill"
             >
               Siguiente
@@ -755,7 +839,13 @@ export default function NewOrderPage() {
               disabled={loading || quoting || !quote || blocked}
               className="flex-1 bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground font-body font-medium px-4 py-2 rounded-lg transition-opacity glow-fill"
             >
-              {loading ? 'Creando pedido...' : 'Confirmar y crear pedido'}
+              {loading
+                ? paymentMethod === 'card' ? 'Procesando pago...' : 'Creando pedido...'
+                : paymentMethod === 'card'
+                  ? `Pagar${total !== null ? ` ${money.format(total)}` : ''} y confirmar`
+                  : paymentMethod === 'oxxo'
+                    ? 'Confirmar y generar ficha'
+                    : 'Confirmar pedido'}
             </button>
           )}
         </div>

@@ -406,6 +406,12 @@ export default function OrderDetailPage() {
           {order.requires_invoice && (
             <p className="font-body text-xs text-status-enroute font-medium">Esta clínica requiere factura.</p>
           )}
+          {order.sample_type && (
+            <div>
+              <p className="font-body text-xs text-muted-foreground mb-1">Tipo de muestra</p>
+              <p className="font-body text-sm text-foreground font-medium">{order.sample_type}</p>
+            </div>
+          )}
           {order.notes && (
             <div>
               <p className="font-body text-xs text-muted-foreground mb-1">Notas</p>

@@ -71,8 +71,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.68 0.16 235);
-  --primary-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.84 0.012 255);
+  --primary-foreground: oklch(0.2 0 0);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.97 0 0);
@@ -91,8 +91,8 @@
   --radius: 0.45rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.68 0.16 235);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.84 0.012 255);
+  --sidebar-primary-foreground: oklch(0.2 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
@@ -102,12 +102,12 @@
 .dark {
   --background: oklch(0.285 0.006 255);
   --foreground: oklch(0.97 0.003 255);
-  --card: oklch(0.34 0.007 255);
+  --card: oklch(0.34 0.007 255 / 70%);
   --card-foreground: oklch(0.97 0.003 255);
   --popover: oklch(0.34 0.007 255);
   --popover-foreground: oklch(0.97 0.003 255);
-  --primary: oklch(0.72 0.17 232);
-  --primary-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.84 0.012 255);
+  --primary-foreground: oklch(0.2 0 0);
   --secondary: oklch(0.38 0.008 255);
   --secondary-foreground: oklch(0.97 0.003 255);
   --muted: oklch(0.38 0.008 255);
@@ -125,8 +125,8 @@
   --chart-5: oklch(0.424 0.199 265.638);
   --sidebar: oklch(0.255 0.006 255);
   --sidebar-foreground: oklch(0.97 0.003 255);
-  --sidebar-primary: oklch(0.72 0.17 232);
-  --sidebar-primary-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.84 0.012 255);
+  --sidebar-primary-foreground: oklch(0.2 0 0);
   --sidebar-accent: oklch(0.38 0.008 255);
   --sidebar-accent-foreground: oklch(0.97 0.003 255);
   --sidebar-border: oklch(1 0 0 / 14%);
@@ -159,4 +159,55 @@
   .glow-fill {
     box-shadow: 0 0 16px 2px color-mix(in oklch, var(--primary) 50%, transparent);
   }
+}
+/* Fondo con degradado (negro → gris) y tarjetas translúcidas tipo glassmorphism */
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: linear-gradient(160deg, oklch(0.12 0 0) 0%, oklch(0.2 0.004 255) 45%, oklch(0.34 0.006 255) 100%) fixed;
+}
+
+/* Los contenedores de página dejan ver el degradado del body */
+[class~="bg-background"][class~="min-h-screen"],
+[class~="bg-background"][class~="min-h-dvh"] {
+  background-color: transparent;
+}
+
+.bg-card {
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+/*
+ * Tarjetas "cristal oscuro": base casi negra con un brillo gris en las esquinas,
+ * borde de luz arriba y sombra profunda (versión en grises del estilo de referencia).
+ * Los campos y botones con bg-card se quedan planos.
+ */
+div.bg-card,
+section.bg-card,
+aside.bg-card,
+article.bg-card,
+header.bg-card,
+nav.bg-card,
+form.bg-card,
+label.bg-card {
+  background-color: oklch(0.2 0.004 255 / 0.74);
+  background-image:
+    radial-gradient(120% 90% at 0% 0%, oklch(0.9 0 0 / 0.16) 0%, transparent 55%),
+    radial-gradient(90% 80% at 100% 100%, oklch(0.8 0 0 / 0.09) 0%, transparent 60%),
+    linear-gradient(145deg, oklch(1 0 0 / 0.06) 0%, oklch(0 0 0 / 0.22) 100%);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.14),
+    inset 0 0 0 1px oklch(1 0 0 / 0.03),
+    0 12px 32px -8px oklch(0 0 0 / 0.55);
+}
+
+div.bg-card.rounded-lg,
+section.bg-card.rounded-lg,
+aside.bg-card.rounded-lg,
+article.bg-card.rounded-lg {
+  border-radius: 1.1rem;
 }

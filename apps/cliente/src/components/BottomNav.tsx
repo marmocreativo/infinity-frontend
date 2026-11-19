@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { ClipboardList, Plus, User } from 'lucide-react';
+import { ClipboardList, Plus, User, Receipt } from 'lucide-react';
 
 export default function BottomNav() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -19,6 +19,11 @@ export default function BottomNav() {
         className="bg-primary text-primary-foreground rounded-full w-14 h-14 flex items-center justify-center -translate-y-4 glow-fill hover:opacity-90 transition-opacity shadow-lg"
       >
         <Plus size={26} />
+      </NavLink>
+
+      <NavLink to="/billing" className={linkClass}>
+        <Receipt size={20} />
+        Facturación
       </NavLink>
 
       <NavLink to="/profile" className={linkClass}>

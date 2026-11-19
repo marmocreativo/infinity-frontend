@@ -160,7 +160,7 @@ export default function OrderMapMensajero({ pickup, delivery, status }: OrderMap
         {route && route.points.length > 1 && (
           <Polyline
             positions={route.points}
-            pathOptions={{ color: '#38BDF8', weight: 5, opacity: 0.9, dashArray: '8 8' }}
+            pathOptions={{ color: '#E8B923', weight: 5, opacity: 0.9, dashArray: '8 8' }}
           />
         )}
         <Marker position={pickupPos} icon={pickupIcon} />

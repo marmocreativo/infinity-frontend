@@ -2,7 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../lib/api';
 import { errorMessage } from '../lib/errors';
 import Avatar from '../components/Avatar';
-import { Bike, Car, Truck, Phone, Mail, Pencil } from 'lucide-react';
+import ImpersonateButton from '../components/ImpersonateButton';
+import { Link } from 'react-router-dom';
+import { Bike, Car, Truck, Phone, Mail, Pencil, BarChart3 } from 'lucide-react';
 
 interface Courier {
   id: number;
@@ -262,7 +264,7 @@ export default function CouriersPage() {
                       <div className="flex items-center gap-3 min-w-0">
                         <Avatar name={courier.name} />
                         <div className="min-w-0">
-                          <p className="font-body text-sm text-foreground font-medium truncate">{courier.name}</p>
+                          <Link to={`/couriers/${courier.id}`} className="font-body text-sm text-foreground font-medium truncate block hover:text-primary hover:underline">{courier.name}</Link>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <VehicleIcon size={12} className="text-muted-foreground shrink-0" />
                             <span className="font-body text-xs text-muted-foreground">
@@ -305,6 +307,14 @@ export default function CouriersPage() {
                       </div>
 
                       <div className="flex items-center gap-4">
+                        <Link
+                          to={`/couriers/${courier.id}`}
+                          className="flex items-center gap-1 font-body text-xs text-primary hover:opacity-80"
+                        >
+                          <BarChart3 size={12} />
+                          Detalle
+                        </Link>
+                        <ImpersonateButton userId={courier.id} disabled={courier.status !== 'active'} />
                         <button
                           onClick={() => setEditingId(courier.id)}
                           className="flex items-center gap-1 font-body text-xs text-primary hover:opacity-80"

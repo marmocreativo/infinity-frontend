@@ -47,6 +47,11 @@ export default function OrderContactInfo({ order }: { order: Order }) {
 
   return (
     <div className="space-y-2 mt-2">
+      {order.scheduled_for && order.status === 'pending' && (
+        <p className="font-body text-xs font-semibold text-status-enroute">
+          Programado para {new Date(`${order.scheduled_for}T12:00:00`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </p>
+      )}
       <p className="font-body text-xs">
         <span className="text-muted-foreground">Clínica: </span>
         <span className="text-foreground font-medium">{order.clinic.business_name}</span>
@@ -97,6 +102,11 @@ export default function OrderContactInfo({ order }: { order: Order }) {
       {order.requires_invoice && (
         <p className="font-body text-xs text-status-enroute font-medium flex items-center gap-1">
           <FileText size={12} /> Requiere factura
+        </p>
+      )}
+      {order.sample_type && (
+        <p className="font-body text-xs text-muted-foreground">
+          Muestra: <span className="text-foreground">{order.sample_type}</span>
         </p>
       )}
       {order.notes && <p className="font-body text-xs text-muted-foreground">Notas: {order.notes}</p>}

@@ -30,20 +30,20 @@ function getInitials(name: string): string {
 // para que no parpadee en cada actualización de ubicación
 const courierIconCache = new Map<string, L.DivIcon>();
 
-function courierIcon(name: string, photoUrl?: string | null): L.DivIcon {
-  const key = `${name}|${photoUrl ?? ''}`;
+function courierIcon(name: string, photoUrl?: string | null, onDuty = true): L.DivIcon {
+  const key = `${name}|${photoUrl ?? ''}|${onDuty}`;
   const cached = courierIconCache.get(key);
   if (cached) return cached;
 
   const initials = escapeHtml(getInitials(name));
   const img = photoUrl
-    ? `<img src="${escapeHtml(photoUrl)}" alt="" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block" />`
+    ? `<img src="${escapeHtml(photoUrl)}" alt="" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;${onDuty ? '' : 'filter:grayscale(1);'}" />`
     : '';
 
   // Las iniciales quedan detrás: si la foto no carga, se ven ellas
   const icon = L.divIcon({
     className: '',
-    html: `<div style="position:relative;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#38BDF8;border:3px solid #38BDF8;box-shadow:0 2px 6px rgba(0,0,0,0.5);box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:#0b1220;font:600 14px sans-serif">${initials}${img}</div>`,
+    html: `<div style="position:relative;width:44px;height:44px;border-radius:50%;overflow:hidden;background:${onDuty ? '#FDE047' : '#9CA3AF'};border:3px solid ${onDuty ? '#FDE047' : '#9CA3AF'};box-shadow:0 2px 6px rgba(0,0,0,0.5);box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:#0b1220;font:600 14px sans-serif;${onDuty ? '' : 'opacity:0.75;'}">${initials}${img}</div>`,
     iconSize: [44, 44],
     iconAnchor: [22, 22],
     popupAnchor: [0, -24],
@@ -88,6 +88,16 @@ interface LocationUpdatePayload {
   recorded_at: string;
 }
 
+/** "hace 20 s", "hace 3 min"... para saber qué tan fresca es la ubicación */
+function timeAgo(iso: string): string {
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (seconds < 60) return `hace ${seconds} s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return `hace ${hours} h ${minutes % 60} min`;
+}
+
 // Rutas ya calculadas (sobreviven a re-renders y recargas de la lista)
 const routeCache = new Map<string, LatLng[]>();
 
@@ -122,21 +132,36 @@ function FitToOrders({ points, fitKey }: { points: LatLng[]; fitKey: string }) {
 
 interface CourierMapWidgetProps {
   orders?: Order[];
+  selectedOrderId?: number | null;
 }
 
-export default function CourierMapWidget({ orders = [] }: CourierMapWidgetProps) {
+export default function CourierMapWidget({ orders = [], selectedOrderId = null }: CourierMapWidgetProps) {
   const [couriers, setCouriers] = useState<CourierOnDuty[]>([]);
   const [routes, setRoutes] = useState<Record<number, LatLng[]>>({});
   const echoRef = useRef<ReturnType<typeof createEcho> | null>(null);
 
   useEffect(() => {
-    api.get<{ data: CourierOnDuty[] }>('/admin/couriers/on-duty')
-      .then((res) => setCouriers(res.data));
+    const loadCouriers = () =>
+      api.get<{ data: CourierOnDuty[] }>('/admin/couriers/on-duty')
+        .then((res) => setCouriers(res.data))
+        .catch(() => {});
 
-    const echo = createEcho();
-    echoRef.current = echo;
+    loadCouriers();
+    // Refresco periódico: es la vía principal (funciona aunque no haya websocket) y
+    // cubre cambios de turno, que no llegan por websocket
+    const refreshTimer = window.setInterval(loadCouriers, 10000);
 
-    echo.private('admin.courier-tracking')
+    // El tiempo real (websocket) es un extra: si no está disponible, el mapa sigue
+    // actualizándose con el refresco periódico
+    let echo: ReturnType<typeof createEcho> | null = null;
+    try {
+      echo = createEcho();
+      echoRef.current = echo;
+    } catch {
+      echo = null;
+    }
+
+    echo?.private('admin.courier-tracking')
       .listen('.courier.location.updated', (payload: LocationUpdatePayload) => {
         setCouriers((prev) =>
           prev.map((c) =>
@@ -155,8 +180,13 @@ export default function CourierMapWidget({ orders = [] }: CourierMapWidgetProps)
       });
 
     return () => {
-      echo.leave('admin.courier-tracking');
-      echo.disconnect();
+      window.clearInterval(refreshTimer);
+      try {
+        echo?.leave('admin.courier-tracking');
+        echo?.disconnect();
+      } catch {
+        // nada que limpiar
+      }
     };
   }, []);
 
@@ -213,18 +243,25 @@ export default function CourierMapWidget({ orders = [] }: CourierMapWidgetProps)
 
   const defaultCenter: LatLng = [19.4326, -99.1332];
   const withLocation = couriers.filter((c) => c.last_location);
+  const onDutyCount = couriers.filter((c) => c.on_duty).length;
   const pendingCount = orders.filter((o) => o.status === 'pending').length;
 
+  const selected = mapOrders.find((m) => m.order.id === selectedOrderId) ?? null;
+  const hasSelection = selected !== null;
+
+  // Con un pedido seleccionado el mapa se centra en él; si no, abarca todos
   const fitPoints = useMemo<LatLng[]>(
-    () => mapOrders.flatMap((m) => [m.pickup, m.delivery]),
-    [mapOrders]
+    () => (selected ? [selected.pickup, selected.delivery] : mapOrders.flatMap((m) => [m.pickup, m.delivery])),
+    [mapOrders, selected]
   );
-  const fitKey = mapOrders.map((m) => m.order.id).join(',');
+  const fitKey = selected ? `sel-${selected.order.id}` : mapOrders.map((m) => m.order.id).join(',');
 
   // Primero las rutas en curso y al final las pendientes, para que queden encima
+  // y el seleccionado siempre al final (encima de todo)
   const orderedForDraw = [
-    ...mapOrders.filter((m) => m.order.status !== 'pending'),
-    ...mapOrders.filter((m) => m.order.status === 'pending'),
+    ...mapOrders.filter((m) => m.order.status !== 'pending' && m.order.id !== selectedOrderId),
+    ...mapOrders.filter((m) => m.order.status === 'pending' && m.order.id !== selectedOrderId),
+    ...mapOrders.filter((m) => m.order.id === selectedOrderId),
   ];
 
   return (
@@ -238,7 +275,7 @@ export default function CourierMapWidget({ orders = [] }: CourierMapWidgetProps)
             </span>
           )}
           <span className="font-body text-xs text-muted-foreground">
-            {withLocation.length === 0 ? 'Sin ubicaciones' : `${withLocation.length} en turno`}
+            {withLocation.length === 0 ? 'Sin ubicaciones' : `${onDutyCount} en turno · ${withLocation.length - withLocation.filter((c) => c.on_duty).length} fuera`}
           </span>
         </div>
       </div>
@@ -255,15 +292,17 @@ export default function CourierMapWidget({ orders = [] }: CourierMapWidgetProps)
             const points = routes[order.id];
             if (!points || points.length < 2) return null;
             const isPending = order.status === 'pending';
+            const isSelected = order.id === selectedOrderId;
+            const dimmed = hasSelection && !isSelected;
 
             return (
               <Polyline
                 key={`route-${order.id}`}
                 positions={points}
                 pathOptions={{
-                  color: isPending ? '#F59E0B' : '#38BDF8',
-                  weight: isPending ? 6 : 4,
-                  opacity: 0.9,
+                  color: isPending ? '#F59E0B' : '#FDE047',
+                  weight: isSelected ? 9 : dimmed ? 2 : isPending ? 6 : 4,
+                  opacity: dimmed ? 0.12 : 0.95,
                   dashArray: isPending ? '10 8' : undefined,
                 }}
               >
@@ -279,12 +318,17 @@ export default function CourierMapWidget({ orders = [] }: CourierMapWidgetProps)
           })}
 
           {/* Puntos de recolección y entrega */}
-          {orderedForDraw.map(({ order, pickup, delivery }) => (
+          {orderedForDraw.map(({ order, pickup, delivery }) => {
+            const isSelected = order.id === selectedOrderId;
+            const dimmed = hasSelection && !isSelected;
+
+            return (
             <span key={`pts-${order.id}`}>
               <Marker
                 position={pickup}
                 icon={order.status === 'pending' ? pendingPickupIcon : pickupIcon}
-                zIndexOffset={order.status === 'pending' ? 500 : 0}
+                opacity={dimmed ? 0.2 : 1}
+                zIndexOffset={isSelected ? 2000 : order.status === 'pending' ? 500 : 0}
               >
                 <Popup>
                   <strong>Recolección · Pedido #{order.id}</strong>
@@ -292,7 +336,7 @@ export default function CourierMapWidget({ orders = [] }: CourierMapWidgetProps)
                   {order.pickup.address}
                 </Popup>
               </Marker>
-              <Marker position={delivery} icon={deliveryIcon}>
+              <Marker position={delivery} icon={deliveryIcon} opacity={dimmed ? 0.2 : 1} zIndexOffset={isSelected ? 2000 : 0}>
                 <Popup>
                   <strong>Entrega · Pedido #{order.id}</strong>
                   <br />
@@ -300,20 +344,23 @@ export default function CourierMapWidget({ orders = [] }: CourierMapWidgetProps)
                 </Popup>
               </Marker>
             </span>
-          ))}
+            );
+          })}
 
           {/* Mensajeros en turno */}
           {withLocation.map((courier) => (
             <Marker
               key={courier.id}
               position={[Number(courier.last_location!.lat), Number(courier.last_location!.lng)]}
-              icon={courierIcon(courier.name, courier.photo_url)}
-              zIndexOffset={1000}
+              icon={courierIcon(courier.name, courier.photo_url, courier.on_duty)}
+              zIndexOffset={courier.on_duty ? 1000 : 900}
             >
               <Popup>
                 <strong>{courier.name}</strong>
                 <br />
-                Última actualización: {new Date(courier.last_location!.recorded_at).toLocaleTimeString()}
+                {courier.on_duty ? 'En turno' : 'Fuera de turno'}
+                <br />
+                Última ubicación: {timeAgo(courier.last_location!.recorded_at)}
               </Popup>
             </Marker>
           ))}
@@ -330,6 +377,10 @@ export default function CourierMapWidget({ orders = [] }: CourierMapWidgetProps)
           <div className="flex items-center gap-2">
             <span className="w-5 border-t-4 border-sky-400 shrink-0" />
             <span className="font-body text-xs text-foreground">En curso</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0" />
+            <span className="font-body text-xs text-foreground">Mensajero fuera de turno</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-status-enroute shrink-0" />
